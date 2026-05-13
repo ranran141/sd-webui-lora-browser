@@ -1,27 +1,27 @@
 # sd-webui-lora-browser
 
-A LORA browser extension for Stable Diffusion WebUI Forge NEO.
+Stable Diffusion WebUI Forge NEO 向けの LORA ブラウザ拡張機能です。
 
-## Features
+## 機能
 
-- Browse and search LORA files with thumbnail previews
-- Folder tree sidebar with drag & drop support
-- Send LORA syntax and trigger words to txt2img prompt at cursor position
-- Sort by path, name, or date added
-- Favorites
-- Preview image management (hover to change)
-- Open in separate window
+- サムネイル付きでLORAファイルを一覧表示・検索
+- フォルダツリーのサイドバー（ドラッグ＆ドロップ対応）
+- LORAの構文やトリガーワードをtxt2imgのカーソル位置に送信
+- パス・名前・追加日でのソート
+- お気に入り機能
+- プレビュー画像の変更（ホバーで切り替え）
+- 別ウィンドウで開く
 
-## Installation
+## インストール方法
 
-1. Open SD WebUI Forge NEO
-2. Go to **Extensions** tab → **Install from URL**
-3. Paste the URL below and click Install:
+1. SD WebUI Forge NEO を起動
+2. **Extensions** タブ → **Install from URL** を開く
+3. 以下のURLを貼り付けて Install をクリック：
    ```
    https://github.com/ranran141/sd-webui-lora-browser
    ```
-4. Restart the WebUI
+4. WebUIを再起動
 
-## Requirements
+## 動作環境
 
 - Stable Diffusion WebUI Forge NEO
