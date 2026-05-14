@@ -484,7 +484,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <div id="modal-model-name"></div>
       <div id="modal-actions">
         <button class="modal-action-btn civitai-btn" id="btn-civitai" onclick="openCivitai()" style="display:none">🌐 Civitai</button>
-        <button class="modal-action-btn fetch-btn" id="btn-fetch-civitai" onclick="fetchCivitai(false)">🔄 CivitAI取得</button>
+        <button class="modal-action-btn fetch-btn" id="btn-fetch-civitai" onclick="fetchCivitai()">🔄 CivitAI取得</button>
         <button class="modal-action-btn delete-btn" onclick="deleteLora()">🗑 Delete</button>
       </div>
     </div>
@@ -1498,27 +1498,20 @@ function openCivitai() {
     (versionId ? '?modelVersionId=' + versionId : ''), '_blank');
 }
 
-async function fetchCivitai(force) {
+async function fetchCivitai() {
   if (!currentLora) return;
   const btn = document.getElementById('btn-fetch-civitai');
   btn.disabled = true;
-  const origText = btn.textContent;
   btn.textContent = '⏳ 取得中...';
   try {
     const res = await fetch('/lora_browser/fetch_civitai', {
       method: 'POST',
       headers: getCivitaiHeaders(),
-      body: JSON.stringify({name: currentLora.name, force: !!force, dl_preview: true})
+      body: JSON.stringify({name: currentLora.name, force: true, dl_preview: true})
     });
     const data = await res.json();
     if (!res.ok || !data.ok) {
       showToast('エラー: ' + (data.error || 'Unknown'));
-      return;
-    }
-    if (data.skipped) {
-      showToast('既にメタデータがあります');
-      btn.textContent = '🔄 再取得';
-      btn.onclick = () => fetchCivitai(true);
       return;
     }
     showToast('取得完了: ' + (data.model_name || currentLora.name));
@@ -1529,7 +1522,7 @@ async function fetchCivitai(force) {
     showToast('エラー: ' + e.message);
   } finally {
     btn.disabled = false;
-    if (btn.textContent === '⏳ 取得中...') btn.textContent = origText;
+    if (btn.textContent === '⏳ 取得中...') btn.textContent = '🔄 CivitAI取得';
   }
 }
 
