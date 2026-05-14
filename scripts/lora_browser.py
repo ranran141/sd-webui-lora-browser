@@ -2758,6 +2758,58 @@ def _register_api(_, app: FastAPI):
 
                 import os
                 os.replace(str(tmp_path), str(sf_path))
+
+                # update metadata to new version
+                try:
+                    model_info = ver_data.get("model") or {}
+                    images = [img for img in (ver_data.get("images") or [])
+                              if img.get("type", "image") == "image"]
+                    model_description = model_info.get("description") or ""
+                    model_tags = model_info.get("tags") or []
+                    if not model_description or not model_tags:
+                        model_id = ver_data.get("modelId")
+                        if model_id:
+                            mreq = _urlreq.Request(
+                                f"https://civitai.com/api/v1/models/{model_id}",
+                                headers=hdrs
+                            )
+                            with _urlreq.urlopen(mreq, timeout=20) as resp:
+                                mdata = json.loads(resp.read().decode("utf-8"))
+                            if not model_description:
+                                model_description = mdata.get("description") or ""
+                            if not model_tags:
+                                model_tags = mdata.get("tags") or []
+                    metadata = {
+                        "model_name": model_info.get("name") or name,
+                        "tags": model_tags,
+                        "base_model": ver_data.get("baseModel") or "",
+                        "preview_url": "",
+                        "civitai": {
+                            "modelId": ver_data.get("modelId"),
+                            "id": ver_data.get("id"),
+                            "trainedWords": ver_data.get("trainedWords") or [],
+                            "description": ver_data.get("description") or "",
+                            "images": images[:10],
+                        },
+                        "modelDescription": model_description,
+                    }
+                    meta_path = sf_path.parent / (name + ".metadata.json")
+                    meta_path.write_text(
+                        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+                    trained_words = ver_data.get("trainedWords") or []
+                    if trained_words:
+                        json_path = sf_path.parent / (name + ".json")
+                        existing = {}
+                        if json_path.exists():
+                            existing = json.loads(json_path.read_text(encoding="utf-8"))
+                        existing["activation text"] = ", ".join(trained_words)
+                        json_path.write_text(
+                            json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+                        )
+                except Exception:
+                    pass
+
                 _download_jobs[job_id]["done"] = True
             except Exception as e:
                 _download_jobs[job_id]["error"] = str(e)
