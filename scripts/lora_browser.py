@@ -2337,8 +2337,7 @@ def _register_api(_, app: FastAPI):
         lora_dir = _get_lora_dir()
         result = []
         for sf in sorted(lora_dir.rglob("*.safetensors")):
-            has_meta = (sf.parent / (sf.stem + ".metadata.json")).exists() or \
-                       (sf.parent / (sf.stem + ".civitai.info")).exists()
+            has_meta = (sf.parent / (sf.stem + ".metadata.json")).exists()
             result.append({"name": sf.stem, "has_meta": has_meta})
         return JSONResponse(content={"loras": result})
 
@@ -2365,7 +2364,7 @@ def _register_api(_, app: FastAPI):
 
         meta_path = sf_path.parent / (name + ".metadata.json")
         info_path = sf_path.parent / (name + ".civitai.info")
-        if (meta_path.exists() or info_path.exists()) and not force:
+        if meta_path.exists() and not force:
             return JSONResponse(content={"ok": True, "skipped": True})
 
         # Try to get SHA256 from .civitai.info first
