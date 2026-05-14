@@ -2413,9 +2413,10 @@ def _register_api(_, app: FastAPI):
         model_info = ver_data.get("model") or {}
         images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
 
-        # model-versions/by-hash often omits model.description; fetch it separately
+        # model-versions/by-hash often omits model.description and tags; fetch separately
         model_description = model_info.get("description") or ""
-        if not model_description:
+        model_tags = model_info.get("tags") or []
+        if not model_description or not model_tags:
             model_id = ver_data.get("modelId")
             if model_id:
                 try:
@@ -2425,13 +2426,16 @@ def _register_api(_, app: FastAPI):
                     )
                     with _urlreq.urlopen(mreq, timeout=20) as resp:
                         mdata = json.loads(resp.read().decode("utf-8"))
-                    model_description = mdata.get("description") or ""
+                    if not model_description:
+                        model_description = mdata.get("description") or ""
+                    if not model_tags:
+                        model_tags = mdata.get("tags") or []
                 except Exception:
                     pass
 
         metadata = {
             "model_name": model_info.get("name") or name,
-            "tags": model_info.get("tags") or [],
+            "tags": model_tags,
             "base_model": ver_data.get("baseModel") or "",
             "preview_url": "",
             "civitai": {
