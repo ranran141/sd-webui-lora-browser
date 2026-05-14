@@ -2724,6 +2724,10 @@ def _register_api(_, app: FastAPI):
                     raise Exception("No download file found")
 
                 dl_url = primary.get("downloadUrl") or f"https://civitai.com/api/download/models/{version_id}"
+                # append token as query param — urllib drops Authorization on redirects
+                if api_key:
+                    sep = "&" if "?" in dl_url else "?"
+                    dl_url = f"{dl_url}{sep}token={api_key}"
                 total = int((primary.get("sizeKB") or 0) * 1024)
                 _download_jobs[job_id]["total"] = total
 
