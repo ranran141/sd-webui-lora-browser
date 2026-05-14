@@ -2464,6 +2464,19 @@ def _register_api(_, app: FastAPI):
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": f"Save error: {e}"})
 
+        # update .json with activation text for civitai helper compatibility
+        trained_words = ver_data.get("trainedWords") or []
+        if trained_words:
+            json_path = sf_path.parent / (name + ".json")
+            try:
+                existing = {}
+                if json_path.exists():
+                    existing = json.loads(json_path.read_text(encoding="utf-8"))
+                existing["activation text"] = ", ".join(trained_words)
+                json_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
         return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
 
 
