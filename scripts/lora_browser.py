@@ -251,6 +251,23 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .modal-action-btn.send-txt:hover { background: rgba(29,78,216,0.15); border-color: #3b82f6; }
 .modal-action-btn.civitai-btn { border-color: #0e7490; color: #67e8f9; }
 .modal-action-btn.civitai-btn:hover { background: rgba(14,116,144,0.15); border-color: #06b6d4; }
+.modal-action-btn.fetch-btn { border-color: #166534; color: #86efac; }
+.modal-action-btn.fetch-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
+.modal-action-btn.fetch-btn:disabled { opacity: 0.5; cursor: default; }
+#bulk-fetch-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
+  align-items: center; justify-content: center; z-index: 9000; }
+#bulk-fetch-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
+  width: 440px; max-width: 92vw; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 12px 48px var(--shadow); }
+#bulk-fetch-title { font-size: 16px; font-weight: 700; color: var(--acc); }
+#bulk-fetch-bar-wrap { background: var(--bg3); border-radius: 6px; height: 8px; overflow: hidden; }
+#bulk-fetch-bar { height: 100%; width: 0; background: #22c55e; border-radius: 6px; transition: width 0.2s; }
+#bulk-fetch-status { font-size: 13px; color: var(--txt3); min-height: 18px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+#bulk-fetch-result { font-size: 13px; color: var(--txt2); min-height: 18px; }
+#bulk-fetch-footer { display: flex; gap: 8px; justify-content: flex-end; }
+.hdr-btn.fetch-all-btn { border-color: #166534; color: #86efac; }
+.hdr-btn.fetch-all-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
 #modal-body { display: flex; overflow: hidden; flex: 1; min-height: 0; }
 #modal-preview-col { width: 200px; flex-shrink: 0; background: var(--bg3);
   display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
@@ -404,7 +421,22 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <div class="hdr-sep"></div>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
+      <button id="bulk-fetch-btn" class="hdr-btn fetch-all-btn" onclick="startBulkFetch()" title="CivitAI一括取得">☁</button>
     </div>
+
+<!-- CivitAI Bulk Fetch Overlay -->
+<div id="bulk-fetch-overlay">
+  <div id="bulk-fetch-modal">
+    <div id="bulk-fetch-title">☁ CivitAI 一括取得</div>
+    <div id="bulk-fetch-bar-wrap"><div id="bulk-fetch-bar"></div></div>
+    <div id="bulk-fetch-status">準備中...</div>
+    <div id="bulk-fetch-result"></div>
+    <div id="bulk-fetch-footer">
+      <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true">■ 停止</button>
+      <button class="modal-action-btn" id="bulk-fetch-close-btn" onclick="closeBulkFetch()" style="display:none">閉じる</button>
+    </div>
+  </div>
+</div>
     <div id="content">
       <div id="loading">Loading...</div>
     </div>
@@ -420,6 +452,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <div id="modal-model-name"></div>
       <div id="modal-actions">
         <button class="modal-action-btn civitai-btn" id="btn-civitai" onclick="openCivitai()" style="display:none">🌐 Civitai</button>
+        <button class="modal-action-btn fetch-btn" id="btn-fetch-civitai" onclick="fetchCivitai(false)">🔄 CivitAI取得</button>
         <button class="modal-action-btn delete-btn" onclick="deleteLora()">🗑 Delete</button>
       </div>
     </div>
@@ -1432,6 +1465,100 @@ function openCivitai() {
     (versionId ? '?modelVersionId=' + versionId : ''), '_blank');
 }
 
+async function fetchCivitai(force) {
+  if (!currentLora) return;
+  const btn = document.getElementById('btn-fetch-civitai');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = '⏳ 取得中...';
+  try {
+    const res = await fetch('/lora_browser/fetch_civitai', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: currentLora.name, force: !!force, dl_preview: true})
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast('エラー: ' + (data.error || 'Unknown'));
+      return;
+    }
+    if (data.skipped) {
+      showToast('既にメタデータがあります');
+      btn.textContent = '🔄 再取得';
+      btn.onclick = () => fetchCivitai(true);
+      return;
+    }
+    showToast('取得完了: ' + (data.model_name || currentLora.name));
+    await loadLoras();
+    const updated = allLoras.find(l => l.name === currentLora.name);
+    if (updated) openModal(updated);
+  } catch(e) {
+    showToast('エラー: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '⏳ 取得中...') btn.textContent = origText;
+  }
+}
+
+let bulkFetchRunning = false;
+let bulkFetchAbort = false;
+
+async function startBulkFetch() {
+  if (bulkFetchRunning) return;
+  bulkFetchRunning = true;
+  bulkFetchAbort = false;
+  const overlay = document.getElementById('bulk-fetch-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('bulk-fetch-stop-btn').style.display = '';
+  document.getElementById('bulk-fetch-close-btn').style.display = 'none';
+  document.getElementById('bulk-fetch-result').textContent = '';
+  document.getElementById('bulk-fetch-bar').style.width = '0';
+  try {
+    document.getElementById('bulk-fetch-status').textContent = 'LoRAリスト取得中...';
+    const res = await fetch('/lora_browser/civitai_missing');
+    const data = await res.json();
+    const missing = (data.loras || []).filter(l => !l.has_meta);
+    const total = missing.length;
+    if (total === 0) {
+      document.getElementById('bulk-fetch-status').textContent = '全LoRAにメタデータがあります';
+      document.getElementById('bulk-fetch-result').textContent = '取得対象なし';
+      return;
+    }
+    let done = 0, found = 0, notFound = 0;
+    for (const lora of missing) {
+      if (bulkFetchAbort) break;
+      document.getElementById('bulk-fetch-status').textContent = lora.name;
+      try {
+        const r = await fetch('/lora_browser/fetch_civitai', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: lora.name, force: false, dl_preview: true})
+        });
+        const d = await r.json();
+        if (d.ok && !d.skipped) found++;
+        else if (!d.ok) notFound++;
+      } catch(e) { notFound++; }
+      done++;
+      document.getElementById('bulk-fetch-bar').style.width = (done / total * 100) + '%';
+      document.getElementById('bulk-fetch-result').textContent =
+        done + ' / ' + total + ' 処理済 (取得: ' + found + '  未登録: ' + notFound + ')';
+    }
+    document.getElementById('bulk-fetch-status').textContent = bulkFetchAbort ? '停止しました' : '完了';
+    await loadLoras();
+  } catch(e) {
+    document.getElementById('bulk-fetch-status').textContent = 'エラー: ' + e.message;
+  } finally {
+    bulkFetchRunning = false;
+    document.getElementById('bulk-fetch-stop-btn').style.display = 'none';
+    document.getElementById('bulk-fetch-close-btn').style.display = '';
+  }
+}
+
+function closeBulkFetch() {
+  if (bulkFetchRunning) return;
+  document.getElementById('bulk-fetch-overlay').style.display = 'none';
+}
+
 function getHostWindow() {
   if (window.opener && !window.opener.closed) return window.opener;
   if (window.parent && window.parent !== window) return window.parent;
@@ -2120,6 +2247,102 @@ def _register_api(_, app: FastAPI):
             return FastAPIResponse(content=buf.getvalue(), media_type="image/jpeg", headers=no_cache)
         except Exception:
             return FileResponse(str(safe), headers=no_cache)
+
+    @app.get("/lora_browser/civitai_missing")
+    def civitai_missing():
+        lora_dir = _get_lora_dir()
+        loras = []
+        for sf in sorted(lora_dir.rglob("*.safetensors")):
+            meta = sf.parent / (sf.stem + ".metadata.json")
+            loras.append({"name": sf.stem, "has_meta": meta.exists()})
+        return JSONResponse(content={"loras": loras})
+
+    @app.post("/lora_browser/fetch_civitai")
+    async def fetch_civitai_endpoint(request: Request):
+        import hashlib
+        import urllib.request as _urlreq
+        import urllib.error as _urlerr
+        data = await request.json()
+        name = (data.get("name") or "").strip()
+        force = bool(data.get("force", False))
+        dl_preview = bool(data.get("dl_preview", True))
+
+        if not name or any(c in name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid name"})
+
+        lora_dir = _get_lora_dir()
+        sf_path = None
+        for sf in lora_dir.rglob(name + ".safetensors"):
+            sf_path = sf
+            break
+        if not sf_path:
+            return JSONResponse(status_code=404, content={"error": "LORA not found"})
+
+        meta_path = sf_path.parent / (name + ".metadata.json")
+        if meta_path.exists() and not force:
+            return JSONResponse(content={"ok": True, "skipped": True})
+
+        try:
+            h = hashlib.sha256()
+            with open(sf_path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+            sha256 = h.hexdigest()
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Hash error: {e}"})
+
+        try:
+            api_url = f"https://civitai.com/api/v1/model-versions/by-hash/{sha256}"
+            req = _urlreq.Request(api_url, headers={"User-Agent": "sd-webui-lora-browser/1.0"})
+            with _urlreq.urlopen(req, timeout=20) as resp:
+                ver_data = json.loads(resp.read().decode("utf-8"))
+        except _urlerr.HTTPError as e:
+            if e.code == 404:
+                return JSONResponse(status_code=404, content={"error": "Not found on CivitAI"})
+            return JSONResponse(status_code=502, content={"error": f"CivitAI API error: {e.code}"})
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": f"Network error: {e}"})
+
+        model_info = ver_data.get("model") or {}
+        images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
+
+        metadata = {
+            "model_name": model_info.get("name") or name,
+            "tags": model_info.get("tags") or [],
+            "base_model": ver_data.get("baseModel") or "",
+            "preview_url": "",
+            "civitai": {
+                "modelId": ver_data.get("modelId"),
+                "id": ver_data.get("id"),
+                "trainedWords": ver_data.get("trainedWords") or [],
+                "description": ver_data.get("description") or "",
+                "images": images[:10],
+            },
+            "modelDescription": model_info.get("description") or "",
+        }
+
+        if dl_preview and images:
+            has_preview = any(
+                (sf_path.parent / (name + ext)).exists()
+                for ext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]
+            )
+            if not has_preview:
+                try:
+                    img_url = images[0].get("url", "")
+                    if img_url:
+                        req = _urlreq.Request(img_url, headers={"User-Agent": "sd-webui-lora-browser/1.0"})
+                        with _urlreq.urlopen(req, timeout=30) as resp:
+                            img_data = resp.read()
+                        (sf_path.parent / (name + ".preview.jpg")).write_bytes(img_data)
+                except Exception:
+                    pass
+
+        try:
+            meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Save error: {e}"})
+
+        return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
 
 
 def _create_tab():
