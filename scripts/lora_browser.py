@@ -1662,9 +1662,33 @@ function renderModalUpdateSection() {
 }
 
 let dlPollTimer = null;
+let dlRunning = false;
+
 async function startFileDownload(name, versionId) {
+  if (dlRunning) return;
+  dlRunning = true;
+  if (dlPollTimer) { clearInterval(dlPollTimer); dlPollTimer = null; }
+
   const btn = document.getElementById('btn-dl-lora');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 準備中...'; }
+
+  // progress UI: reuse existing or create once
+  const sec = document.getElementById('modal-update-section');
+  let wrap = sec && sec.querySelector('.dl-progress-wrap');
+  let bar, pct;
+  if (!wrap) {
+    wrap = document.createElement('div'); wrap.className = 'dl-progress-wrap';
+    bar = document.createElement('div'); bar.className = 'dl-progress-bar'; wrap.appendChild(bar);
+    pct = document.createElement('span'); pct.className = 'dl-progress-pct';
+    pct.style.cssText = 'font-size:11px;color:var(--txt3);margin-left:6px;flex-shrink:0;';
+    if (sec) { sec.appendChild(wrap); sec.appendChild(pct); }
+  } else {
+    bar = wrap.querySelector('.dl-progress-bar');
+    pct = sec && sec.querySelector('.dl-progress-pct');
+  }
+  bar.style.width = '0';
+  if (pct) pct.textContent = '0%';
+
   try {
     const res = await fetch('/lora_browser/start_download', {
       method: 'POST',
@@ -1672,38 +1696,43 @@ async function startFileDownload(name, versionId) {
       body: JSON.stringify({name, version_id: versionId})
     });
     const data = await res.json();
-    if (!data.ok) { showToast('エラー: ' + (data.error || 'Unknown')); if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; } return; }
-    pollDownload(data.job_id, name, versionId);
+    if (!data.ok) {
+      showToast('エラー: ' + (data.error || 'Unknown'));
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
+      dlRunning = false;
+      return;
+    }
+
+    dlPollTimer = setInterval(async () => {
+      try {
+        const r = await fetch('/lora_browser/download_progress?job_id=' + encodeURIComponent(data.job_id));
+        const d = await r.json();
+        if (d.total > 0) {
+          const p = Math.round(d.progress / d.total * 100);
+          bar.style.width = p + '%';
+          if (pct) pct.textContent = p + '%';
+          if (btn) btn.textContent = `⏳ ${p}%`;
+        }
+        if (d.done) {
+          clearInterval(dlPollTimer); dlPollTimer = null; dlRunning = false;
+          if (d.error) {
+            showToast('DLエラー: ' + d.error);
+            if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
+          } else {
+            showToast('ダウンロード完了: ' + name);
+            delete updateMap[name];
+            await loadLoras();
+            const updated = allLoras.find(l => l.name === name);
+            if (updated) openModal(updated);
+          }
+        }
+      } catch(e) { clearInterval(dlPollTimer); dlPollTimer = null; dlRunning = false; }
+    }, 1000);
   } catch(e) {
     showToast('エラー: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
+    dlRunning = false;
   }
-}
-
-function pollDownload(jobId, name, versionId) {
-  const btn = document.getElementById('btn-dl-lora');
-  const wrap = document.createElement('div'); wrap.className = 'dl-progress-wrap';
-  const bar = document.createElement('div'); bar.className = 'dl-progress-bar'; wrap.appendChild(bar);
-  const sec = document.getElementById('modal-update-section');
-  if (sec) sec.appendChild(wrap);
-  dlPollTimer = setInterval(async () => {
-    try {
-      const r = await fetch('/lora_browser/download_progress?job_id=' + encodeURIComponent(jobId));
-      const d = await r.json();
-      if (d.total > 0) bar.style.width = Math.round(d.progress / d.total * 100) + '%';
-      if (d.done) {
-        clearInterval(dlPollTimer);
-        if (d.error) { showToast('DLエラー: ' + d.error); if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; } }
-        else {
-          showToast('ダウンロード完了: ' + name);
-          delete updateMap[name];
-          await loadLoras();
-          const updated = allLoras.find(l => l.name === name);
-          if (updated) openModal(updated);
-        }
-      }
-    } catch(e) { clearInterval(dlPollTimer); }
-  }, 1000);
 }
 
 function openSettings() {
