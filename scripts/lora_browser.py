@@ -1998,8 +1998,8 @@ def _scan_loras():
         if meta_path.exists():
             try:
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
-                model_name = custom_model_name or mdata.get("model_name", name)
-                tags = custom_tags if custom_tags is not None else mdata.get("tags", [])
+                model_name = mdata.get("model_name", name)
+                tags = mdata.get("tags", [])
                 base_model = mdata.get("base_model", "")
                 if not preview_rel:
                     purl = mdata.get("preview_url", "")
@@ -2014,8 +2014,6 @@ def _scan_loras():
                 civitai_model_id = int(civitai.get("modelId") or 0)
                 civitai_version_id = int(civitai.get("id") or 0)
                 trained_words = civitai.get("trainedWords") or []
-                if custom_trigger_words is not None:
-                    trained_words = custom_trigger_words
                 raw_desc = mdata.get("modelDescription") or civitai.get("description") or ""
                 civitai_html = _sanitize_html(raw_desc)
                 sample_images = _parse_images(civitai.get("images"))
@@ -2025,19 +2023,25 @@ def _scan_loras():
             try:
                 idata = json.loads(info_path.read_text(encoding="utf-8"))
                 minfo = idata.get("model") or {}
-                model_name = custom_model_name or minfo.get("name") or name
-                tags = custom_tags if custom_tags is not None else (minfo.get("tags") or [])
+                model_name = minfo.get("name") or name
+                tags = minfo.get("tags") or []
                 base_model = idata.get("baseModel") or ""
                 civitai_model_id = int(idata.get("modelId") or 0)
                 civitai_version_id = int(idata.get("id") or 0)
                 trained_words = idata.get("trainedWords") or []
-                if custom_trigger_words is not None:
-                    trained_words = custom_trigger_words
                 raw_desc = minfo.get("description") or idata.get("description") or ""
                 civitai_html = _sanitize_html(raw_desc)
                 sample_images = _parse_images(idata.get("images"))
             except Exception:
                 pass
+
+        # apply custom overrides regardless of whether metadata files exist
+        if custom_model_name:
+            model_name = custom_model_name
+        if custom_tags is not None:
+            tags = custom_tags
+        if custom_trigger_words is not None:
+            trained_words = custom_trigger_words
 
         loras.append({
             "name": name,
