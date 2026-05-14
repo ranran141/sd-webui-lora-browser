@@ -2347,6 +2347,22 @@ def _register_api(_, app: FastAPI):
         model_info = ver_data.get("model") or {}
         images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
 
+        # model-versions/by-hash often omits model.description; fetch it separately
+        model_description = model_info.get("description") or ""
+        if not model_description:
+            model_id = ver_data.get("modelId")
+            if model_id:
+                try:
+                    mreq = _urlreq.Request(
+                        f"https://civitai.com/api/v1/models/{model_id}",
+                        headers={"User-Agent": "sd-webui-lora-browser/1.0"}
+                    )
+                    with _urlreq.urlopen(mreq, timeout=20) as resp:
+                        mdata = json.loads(resp.read().decode("utf-8"))
+                    model_description = mdata.get("description") or ""
+                except Exception:
+                    pass
+
         metadata = {
             "model_name": model_info.get("name") or name,
             "tags": model_info.get("tags") or [],
@@ -2359,7 +2375,7 @@ def _register_api(_, app: FastAPI):
                 "description": ver_data.get("description") or "",
                 "images": images[:10],
             },
-            "modelDescription": model_info.get("description") or "",
+            "modelDescription": model_description,
         }
 
         if dl_preview and images:
