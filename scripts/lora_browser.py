@@ -92,7 +92,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .stree-folder-btn.del:hover { border-color: #c55; color: #f66; background: rgba(200,80,80,0.1); }
 .fm-inline-create { display: flex; gap: 4px; align-items: center;
   padding: 4px 8px; border-bottom: 1px solid var(--bd); background: var(--bg3); }
-#cat-list { overflow-y: auto; flex: 1; padding: 6px 0; }
+#cat-list { overflow-y: auto; flex: 1; padding: 6px 0 240px; min-height: 0; }
 .cat-btn { width: 100%; background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; text-align: left; transition: background 0.12s; }
 .cat-btn:hover { background: var(--pri-bg); }
@@ -130,7 +130,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .stree-item.expanded > .stree-children { display: block; }
 
 /* ── コンテンツエリア ── */
-#content { flex: 1; overflow-y: auto; padding: 16px;
+#content { flex: 1; overflow-y: auto; padding: 16px 16px 240px;
   display: flex; flex-direction: column; gap: 20px; }
 
 /* ── セクションブロック ── */
