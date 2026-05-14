@@ -1344,6 +1344,7 @@ async function saveWords() {
     });
     if (!res.ok) throw new Error('Save failed');
     currentLora.trained_words = words;
+    allLoras.forEach(l => { if (l.name === currentLora.name) l.trained_words = words; });
     document.querySelectorAll('.card').forEach(card => {
       const lora = JSON.parse(card.dataset.lora);
       if (lora.name === currentLora.name) {
