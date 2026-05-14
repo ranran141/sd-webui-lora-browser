@@ -6,8 +6,6 @@ from modules.script_callbacks import on_app_started, on_ui_tabs
 
 WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LORA_DIR = WEBUI_ROOT / "models" / "Lora"
-_download_jobs = {}
-
 HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -269,17 +267,6 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 #bulk-fetch-footer { display: flex; gap: 8px; justify-content: flex-end; }
 .hdr-btn.fetch-all-btn { border-color: #166534; color: #86efac; }
 .hdr-btn.fetch-all-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
-.hdr-btn.check-update-btn { border-color: #92400e; color: #fcd34d; }
-.hdr-btn.check-update-btn:hover { background: rgba(146,64,14,0.2); border-color: #f59e0b; }
-.update-badge { position: absolute; top: 5px; right: 5px; background: #f59e0b; color: #000;
-  font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; line-height: 1.6;
-  pointer-events: none; z-index: 2; }
-#modal-update-section { margin: 10px 0; padding: 10px 14px; background: rgba(245,158,11,0.1);
-  border: 1px solid #92400e; border-radius: 8px; display: flex; align-items: center;
-  gap: 10px; flex-wrap: wrap; }
-#modal-update-section .update-label { color: #fcd34d; font-size: 13px; flex: 1; min-width: 120px; }
-.dl-progress-wrap { background: var(--bg3); border-radius: 6px; height: 6px; overflow: hidden; flex: 1; min-width: 80px; }
-.dl-progress-bar { height: 100%; width: 0; background: #f59e0b; border-radius: 6px; transition: width 0.3s; }
 #settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
   align-items: center; justify-content: center; z-index: 9000; }
 #settings-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
@@ -448,8 +435,6 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
       <button id="bulk-fetch-btn" class="hdr-btn fetch-all-btn" onclick="startBulkFetch()" title="CivitAI一括取得">☁</button>
-      <button id="check-update-btn" class="hdr-btn check-update-btn" onclick="checkUpdates()" title="バージョンチェック">🔍</button>
-      <button id="filter-update-btn" class="hdr-btn check-update-btn" onclick="toggleUpdateFilter()" title="更新ありのみ表示" style="display:none">↑ 更新のみ</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="設定">⚙</button>
     </div>
     <div id="content">
@@ -944,15 +929,7 @@ function setCat(cat, el) {
 }
 
 /* ── フィルタ ── */
-let filterUpdatesOnly = false;
 function onSearch() { applyFilter(); }
-
-function toggleUpdateFilter() {
-  filterUpdatesOnly = !filterUpdatesOnly;
-  const btn = document.getElementById('filter-update-btn');
-  btn.classList.toggle('active', filterUpdatesOnly);
-  applyFilter();
-}
 
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase();
@@ -969,8 +946,7 @@ function applyFilter() {
       || lora.model_name.toLowerCase().includes(q)
       || (lora.activation_text || '').toLowerCase().includes(q)
       || (lora.tags || []).some(t => t.toLowerCase().includes(q));
-    const updateMatch = !filterUpdatesOnly || !!updateMap[lora.name];
-    const show = catMatch && favMatch && textMatch && updateMatch;
+    const show = catMatch && favMatch && textMatch;
     card.style.display = show ? '' : 'none';
     if (show) total++;
   });
@@ -987,12 +963,6 @@ function makeCard(lora) {
   const card = document.createElement('div');
   card.className = 'card' + (isFav(lora.name) ? ' fav-card' : '');
   card.dataset.lora = JSON.stringify(lora);
-  if (updateMap[lora.name]) {
-    const badge = document.createElement('div');
-    badge.className = 'update-badge';
-    badge.textContent = '↑ 更新';
-    card.appendChild(badge);
-  }
 
   const imgHtml = lora.preview
     ? `<img class="card-img" src="/lora_browser/preview?path=${encodeURIComponent(lora.preview)}&w=420&_v=${previewVer}"
@@ -1145,7 +1115,6 @@ function openModal(lora) {
 
   updateSyntax();
   showTrainedWords(lora.trained_words || []);
-  renderModalUpdateSection();
 
   document.getElementById('modal-overlay').style.display = 'flex';
   document.addEventListener('keydown', onModalKey);
@@ -1613,139 +1582,6 @@ async function startBulkFetch() {
 function closeBulkFetch() {
   if (bulkFetchRunning) return;
   document.getElementById('bulk-fetch-overlay').style.display = 'none';
-}
-
-/* ── バージョンチェック ── */
-let updateMap = {};  // name -> {latest_version_id, latest_version_name}
-
-async function checkUpdates() {
-  const btn = document.getElementById('check-update-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳';
-  const targets = allLoras.filter(l => l.civitai_model_id && l.civitai_version_id)
-    .map(l => ({name: l.name, model_id: l.civitai_model_id, version_id: l.civitai_version_id}));
-  if (!targets.length) { showToast('チェック対象なし（CivitAIメタデータのあるLoRAが必要）'); btn.disabled = false; btn.textContent = '🔍'; return; }
-  try {
-    const res = await fetch('/lora_browser/check_updates', {
-      method: 'POST',
-      headers: getCivitaiHeaders(),
-      body: JSON.stringify({loras: targets})
-    });
-    const data = await res.json();
-    updateMap = {};
-    let count = 0;
-    for (const r of (data.results || [])) {
-      if (r.has_update) { updateMap[r.name] = r; count++; }
-    }
-    document.querySelectorAll('.card').forEach(card => {
-      const lora = JSON.parse(card.dataset.lora);
-      let badge = card.querySelector('.update-badge');
-      if (updateMap[lora.name]) {
-        if (!badge) { badge = document.createElement('div'); badge.className = 'update-badge'; card.appendChild(badge); }
-        badge.textContent = '↑ 更新';
-      } else if (badge) {
-        badge.remove();
-      }
-    });
-    if (currentLora) renderModalUpdateSection();
-    const filterBtn = document.getElementById('filter-update-btn');
-    if (filterBtn) filterBtn.style.display = count ? '' : 'none';
-    if (!count) { filterUpdatesOnly = false; filterBtn && filterBtn.classList.remove('active'); }
-    showToast(count ? `${count}件の更新があります` : '全て最新版です');
-  } catch(e) {
-    showToast('エラー: ' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '🔍';
-  }
-}
-
-function renderModalUpdateSection() {
-  const existing = document.getElementById('modal-update-section');
-  if (existing) existing.remove();
-  if (!currentLora || !updateMap[currentLora.name]) return;
-  const info = updateMap[currentLora.name];
-  const sec = document.createElement('div');
-  sec.id = 'modal-update-section';
-  sec.innerHTML =
-    `<div class="update-label">↑ 新バージョン: ${esc(info.latest_version_name || String(info.latest_version_id))}</div>` +
-    `<button class="modal-action-btn fetch-btn" onclick="fetchCivitai()" style="flex-shrink:0">🔄 メタデータ更新</button>` +
-    `<button class="modal-action-btn" id="btn-dl-lora" onclick="startFileDownload('${esc(currentLora.name)}',${info.latest_version_id})" style="flex-shrink:0;border-color:#92400e;color:#fcd34d">⬇ ファイルDL</button>`;
-  const infoCol = document.getElementById('modal-info-col');
-  if (infoCol) infoCol.insertBefore(sec, infoCol.firstChild);
-}
-
-let dlPollTimer = null;
-let dlRunning = false;
-
-async function startFileDownload(name, versionId) {
-  if (dlRunning) return;
-  dlRunning = true;
-  if (dlPollTimer) { clearInterval(dlPollTimer); dlPollTimer = null; }
-
-  const btn = document.getElementById('btn-dl-lora');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 準備中...'; }
-
-  // progress UI: reuse existing or create once
-  const sec = document.getElementById('modal-update-section');
-  let wrap = sec && sec.querySelector('.dl-progress-wrap');
-  let bar, pct;
-  if (!wrap) {
-    wrap = document.createElement('div'); wrap.className = 'dl-progress-wrap';
-    bar = document.createElement('div'); bar.className = 'dl-progress-bar'; wrap.appendChild(bar);
-    pct = document.createElement('span'); pct.className = 'dl-progress-pct';
-    pct.style.cssText = 'font-size:11px;color:var(--txt3);margin-left:6px;flex-shrink:0;';
-    if (sec) { sec.appendChild(wrap); sec.appendChild(pct); }
-  } else {
-    bar = wrap.querySelector('.dl-progress-bar');
-    pct = sec && sec.querySelector('.dl-progress-pct');
-  }
-  bar.style.width = '0';
-  if (pct) pct.textContent = '0%';
-
-  try {
-    const res = await fetch('/lora_browser/start_download', {
-      method: 'POST',
-      headers: getCivitaiHeaders(),
-      body: JSON.stringify({name, version_id: versionId})
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      showToast('エラー: ' + (data.error || 'Unknown'));
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
-      dlRunning = false;
-      return;
-    }
-
-    dlPollTimer = setInterval(async () => {
-      try {
-        const r = await fetch('/lora_browser/download_progress?job_id=' + encodeURIComponent(data.job_id));
-        const d = await r.json();
-        if (d.total > 0) {
-          const p = Math.round(d.progress / d.total * 100);
-          bar.style.width = p + '%';
-          if (pct) pct.textContent = p + '%';
-          if (btn) btn.textContent = `⏳ ${p}%`;
-        }
-        if (d.done) {
-          clearInterval(dlPollTimer); dlPollTimer = null; dlRunning = false;
-          if (d.error) {
-            showToast('DLエラー: ' + d.error);
-            if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
-          } else {
-            showToast('ダウンロード完了: ' + name);
-            delete updateMap[name];
-            await loadLoras();
-            const updated = allLoras.find(l => l.name === name);
-            if (updated) openModal(updated);
-          }
-        }
-      } catch(e) { clearInterval(dlPollTimer); dlPollTimer = null; dlRunning = false; }
-    }, 1000);
-  } catch(e) {
-    showToast('エラー: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '⬇ ファイルDL'; }
-    dlRunning = false;
-  }
 }
 
 function openSettings() {
@@ -2639,192 +2475,6 @@ def _register_api(_, app: FastAPI):
                 pass
 
         return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
-
-    @app.post("/lora_browser/check_updates")
-    async def check_updates(request: Request):
-        import urllib.request as _urlreq
-        import urllib.error as _urlerr
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        data = await request.json()
-        loras = data.get("loras", [])
-        api_key = request.headers.get("X-Civitai-Api-Key", "").strip()
-
-        def _hdrs():
-            h = {"User-Agent": "sd-webui-lora-browser/1.0"}
-            if api_key:
-                h["Authorization"] = f"Bearer {api_key}"
-            return h
-
-        def check_one(lora):
-            model_id = lora.get("model_id")
-            version_id = lora.get("version_id")
-            if not model_id or not version_id:
-                return None
-            try:
-                req = _urlreq.Request(
-                    f"https://civitai.com/api/v1/models/{model_id}",
-                    headers=_hdrs()
-                )
-                with _urlreq.urlopen(req, timeout=15) as resp:
-                    mdata = json.loads(resp.read().decode("utf-8"))
-                versions = mdata.get("modelVersions") or []
-                if not versions:
-                    return None
-                latest = versions[0]
-                latest_id = int(latest.get("id") or 0)
-                has_update = latest_id != int(version_id)
-                return {
-                    "name": lora.get("name"),
-                    "has_update": has_update,
-                    "latest_version_id": latest_id,
-                    "latest_version_name": latest.get("name") or "",
-                }
-            except Exception:
-                return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            futures = {ex.submit(check_one, l): l for l in loras}
-            for fut in as_completed(futures):
-                r = fut.result()
-                if r:
-                    results.append(r)
-
-        return JSONResponse(content={"results": results})
-
-    @app.post("/lora_browser/start_download")
-    async def start_download(request: Request):
-        import urllib.request as _urlreq
-        import threading
-        data = await request.json()
-        name = (data.get("name") or "").strip()
-        version_id = int(data.get("version_id") or 0)
-        api_key = request.headers.get("X-Civitai-Api-Key", "").strip()
-
-        if not name or not version_id:
-            return JSONResponse(status_code=400, content={"error": "Invalid params"})
-        if any(c in name for c in ('/', '\\', '..')):
-            return JSONResponse(status_code=400, content={"error": "Invalid name"})
-
-        lora_dir = _get_lora_dir()
-        sf_path = None
-        for sf in lora_dir.rglob(name + ".safetensors"):
-            sf_path = sf
-            break
-        if not sf_path:
-            return JSONResponse(status_code=404, content={"error": "LORA not found"})
-
-        job_id = f"{name}__{version_id}"
-        _download_jobs[job_id] = {"progress": 0, "total": 0, "done": False, "error": None}
-
-        def do_download():
-            tmp_path = sf_path.parent / (name + ".safetensors.tmp")
-            try:
-                hdrs = {"User-Agent": "sd-webui-lora-browser/1.0"}
-                if api_key:
-                    hdrs["Authorization"] = f"Bearer {api_key}"
-
-                req = _urlreq.Request(
-                    f"https://civitai.com/api/v1/model-versions/{version_id}",
-                    headers=hdrs
-                )
-                with _urlreq.urlopen(req, timeout=15) as resp:
-                    ver_data = json.loads(resp.read().decode("utf-8"))
-
-                files = ver_data.get("files") or []
-                primary = next((f for f in files if f.get("primary")), files[0] if files else None)
-                if not primary:
-                    raise Exception("No download file found")
-
-                dl_url = primary.get("downloadUrl") or f"https://civitai.com/api/download/models/{version_id}"
-                # append token as query param — urllib drops Authorization on redirects
-                if api_key:
-                    sep = "&" if "?" in dl_url else "?"
-                    dl_url = f"{dl_url}{sep}token={api_key}"
-                total = int((primary.get("sizeKB") or 0) * 1024)
-                _download_jobs[job_id]["total"] = total
-
-                req = _urlreq.Request(dl_url, headers=hdrs)
-                downloaded = 0
-                with _urlreq.urlopen(req, timeout=600) as resp:
-                    with open(tmp_path, "wb") as f:
-                        while True:
-                            chunk = resp.read(65536)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            _download_jobs[job_id]["progress"] = downloaded
-
-                import os
-                os.replace(str(tmp_path), str(sf_path))
-
-                # update metadata to new version
-                try:
-                    model_info = ver_data.get("model") or {}
-                    images = [img for img in (ver_data.get("images") or [])
-                              if img.get("type", "image") == "image"]
-                    model_description = model_info.get("description") or ""
-                    model_tags = model_info.get("tags") or []
-                    if not model_description or not model_tags:
-                        model_id = ver_data.get("modelId")
-                        if model_id:
-                            mreq = _urlreq.Request(
-                                f"https://civitai.com/api/v1/models/{model_id}",
-                                headers=hdrs
-                            )
-                            with _urlreq.urlopen(mreq, timeout=20) as resp:
-                                mdata = json.loads(resp.read().decode("utf-8"))
-                            if not model_description:
-                                model_description = mdata.get("description") or ""
-                            if not model_tags:
-                                model_tags = mdata.get("tags") or []
-                    metadata = {
-                        "model_name": model_info.get("name") or name,
-                        "tags": model_tags,
-                        "base_model": ver_data.get("baseModel") or "",
-                        "preview_url": "",
-                        "civitai": {
-                            "modelId": ver_data.get("modelId"),
-                            "id": ver_data.get("id"),
-                            "trainedWords": ver_data.get("trainedWords") or [],
-                            "description": ver_data.get("description") or "",
-                            "images": images[:10],
-                        },
-                        "modelDescription": model_description,
-                    }
-                    meta_path = sf_path.parent / (name + ".metadata.json")
-                    meta_path.write_text(
-                        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
-                    )
-                    trained_words = ver_data.get("trainedWords") or []
-                    if trained_words:
-                        json_path = sf_path.parent / (name + ".json")
-                        existing = {}
-                        if json_path.exists():
-                            existing = json.loads(json_path.read_text(encoding="utf-8"))
-                        existing["activation text"] = ", ".join(trained_words)
-                        json_path.write_text(
-                            json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
-                        )
-                except Exception:
-                    pass
-
-                _download_jobs[job_id]["done"] = True
-            except Exception as e:
-                _download_jobs[job_id]["error"] = str(e)
-                _download_jobs[job_id]["done"] = True
-                if tmp_path.exists():
-                    tmp_path.unlink(missing_ok=True)
-
-        threading.Thread(target=do_download, daemon=True).start()
-        return JSONResponse(content={"ok": True, "job_id": job_id})
-
-    @app.get("/lora_browser/download_progress")
-    def download_progress(job_id: str):
-        if job_id not in _download_jobs:
-            return JSONResponse(status_code=404, content={"error": "Job not found"})
-        return JSONResponse(content=_download_jobs[job_id])
 
 
 def _create_tab():
