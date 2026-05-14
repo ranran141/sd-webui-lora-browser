@@ -268,6 +268,20 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 #bulk-fetch-footer { display: flex; gap: 8px; justify-content: flex-end; }
 .hdr-btn.fetch-all-btn { border-color: #166534; color: #86efac; }
 .hdr-btn.fetch-all-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
+#settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
+  align-items: center; justify-content: center; z-index: 9000; }
+#settings-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
+  width: 420px; max-width: 92vw; padding: 24px; display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 12px 48px var(--shadow); }
+#settings-title { font-size: 16px; font-weight: 700; color: var(--acc); }
+.settings-row { display: flex; flex-direction: column; gap: 6px; }
+.settings-label { font-size: 13px; color: var(--txt3); }
+.settings-input { background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px;
+  color: var(--txt); font-size: 13px; padding: 8px 10px; width: 100%; box-sizing: border-box;
+  transition: border-color 0.15s; }
+.settings-input:focus { outline: none; border-color: var(--pri); }
+.settings-hint { font-size: 11px; color: var(--txt4); }
+#settings-footer { display: flex; gap: 8px; justify-content: flex-end; }
 #modal-body { display: flex; overflow: hidden; flex: 1; min-height: 0; }
 #modal-preview-col { width: 200px; flex-shrink: 0; background: var(--bg3);
   display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
@@ -422,6 +436,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
       <button id="bulk-fetch-btn" class="hdr-btn fetch-all-btn" onclick="startBulkFetch()" title="CivitAI一括取得">☁</button>
+      <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="設定">⚙</button>
     </div>
     <div id="content">
       <div id="loading">Loading...</div>
@@ -439,6 +454,24 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
     <div id="bulk-fetch-footer">
       <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true">■ 停止</button>
       <button class="modal-action-btn" id="bulk-fetch-close-btn" onclick="closeBulkFetch()" style="display:none">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Overlay -->
+<div id="settings-overlay" style="display:none" onclick="onSettingsOverlayClick(event)">
+  <div id="settings-modal">
+    <div id="settings-title">⚙ 設定</div>
+    <div class="settings-row">
+      <div class="settings-label">CivitAI API Key</div>
+      <input id="settings-civitai-key" class="settings-input" type="password"
+        placeholder="例: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        autocomplete="off">
+      <div class="settings-hint">CivitAI → アカウント設定 → API Keys で発行。未入力でも基本的な取得は可能。</div>
+    </div>
+    <div id="settings-footer">
+      <button class="modal-action-btn" onclick="closeSettings()">キャンセル</button>
+      <button class="modal-action-btn civitai-btn" onclick="saveSettings()">保存</button>
     </div>
   </div>
 </div>
@@ -1473,7 +1506,7 @@ async function fetchCivitai(force) {
   try {
     const res = await fetch('/lora_browser/fetch_civitai', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: getCivitaiHeaders(),
       body: JSON.stringify({name: currentLora.name, force: !!force, dl_preview: true})
     });
     const data = await res.json();
@@ -1530,7 +1563,7 @@ async function startBulkFetch() {
       try {
         const r = await fetch('/lora_browser/fetch_civitai', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: getCivitaiHeaders(),
           body: JSON.stringify({name: lora.name, force: false, dl_preview: true})
         });
         const d = await r.json();
@@ -1556,6 +1589,28 @@ async function startBulkFetch() {
 function closeBulkFetch() {
   if (bulkFetchRunning) return;
   document.getElementById('bulk-fetch-overlay').style.display = 'none';
+}
+
+function openSettings() {
+  document.getElementById('settings-civitai-key').value = getSetting('civitai_api_key', '');
+  document.getElementById('settings-overlay').style.display = 'flex';
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').style.display = 'none';
+}
+function saveSettings() {
+  const key = document.getElementById('settings-civitai-key').value.trim();
+  setSetting('civitai_api_key', key);
+  closeSettings();
+  showToast('設定を保存しました');
+}
+function onSettingsOverlayClick(e) {
+  if (e.target === document.getElementById('settings-overlay')) closeSettings();
+}
+function getCivitaiHeaders() {
+  const key = getSetting('civitai_api_key', '');
+  return key ? {'Content-Type': 'application/json', 'X-Civitai-Api-Key': key}
+             : {'Content-Type': 'application/json'};
 }
 
 function getHostWindow() {
@@ -2332,9 +2387,16 @@ def _register_api(_, app: FastAPI):
             except Exception as e:
                 return JSONResponse(status_code=500, content={"error": f"Hash error: {e}"})
 
+        api_key = request.headers.get("X-Civitai-Api-Key", "").strip()
+        def _civitai_headers():
+            h = {"User-Agent": "sd-webui-lora-browser/1.0"}
+            if api_key:
+                h["Authorization"] = f"Bearer {api_key}"
+            return h
+
         try:
             api_url = f"https://civitai.com/api/v1/model-versions/by-hash/{sha256}"
-            req = _urlreq.Request(api_url, headers={"User-Agent": "sd-webui-lora-browser/1.0"})
+            req = _urlreq.Request(api_url, headers=_civitai_headers())
             with _urlreq.urlopen(req, timeout=20) as resp:
                 ver_data = json.loads(resp.read().decode("utf-8"))
         except _urlerr.HTTPError as e:
@@ -2355,7 +2417,7 @@ def _register_api(_, app: FastAPI):
                 try:
                     mreq = _urlreq.Request(
                         f"https://civitai.com/api/v1/models/{model_id}",
-                        headers={"User-Agent": "sd-webui-lora-browser/1.0"}
+                        headers=_civitai_headers()
                     )
                     with _urlreq.urlopen(mreq, timeout=20) as resp:
                         mdata = json.loads(resp.read().decode("utf-8"))
