@@ -449,6 +449,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
       <button id="bulk-fetch-btn" class="hdr-btn fetch-all-btn" onclick="startBulkFetch()" title="CivitAI一括取得">☁</button>
       <button id="check-update-btn" class="hdr-btn check-update-btn" onclick="checkUpdates()" title="バージョンチェック">🔍</button>
+      <button id="filter-update-btn" class="hdr-btn check-update-btn" onclick="toggleUpdateFilter()" title="更新ありのみ表示" style="display:none">↑ 更新のみ</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="設定">⚙</button>
     </div>
     <div id="content">
@@ -943,7 +944,15 @@ function setCat(cat, el) {
 }
 
 /* ── フィルタ ── */
+let filterUpdatesOnly = false;
 function onSearch() { applyFilter(); }
+
+function toggleUpdateFilter() {
+  filterUpdatesOnly = !filterUpdatesOnly;
+  const btn = document.getElementById('filter-update-btn');
+  btn.classList.toggle('active', filterUpdatesOnly);
+  applyFilter();
+}
 
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase();
@@ -960,7 +969,8 @@ function applyFilter() {
       || lora.model_name.toLowerCase().includes(q)
       || (lora.activation_text || '').toLowerCase().includes(q)
       || (lora.tags || []).some(t => t.toLowerCase().includes(q));
-    const show = catMatch && favMatch && textMatch;
+    const updateMatch = !filterUpdatesOnly || !!updateMap[lora.name];
+    const show = catMatch && favMatch && textMatch && updateMatch;
     card.style.display = show ? '' : 'none';
     if (show) total++;
   });
@@ -1638,6 +1648,9 @@ async function checkUpdates() {
       }
     });
     if (currentLora) renderModalUpdateSection();
+    const filterBtn = document.getElementById('filter-update-btn');
+    if (filterBtn) filterBtn.style.display = count ? '' : 'none';
+    if (!count) { filterUpdatesOnly = false; filterBtn && filterBtn.classList.remove('active'); }
     showToast(count ? `${count}件の更新があります` : '全て最新版です');
   } catch(e) {
     showToast('エラー: ' + e.message);
