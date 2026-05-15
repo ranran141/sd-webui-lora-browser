@@ -6,9 +6,18 @@ from modules.script_callbacks import on_app_started, on_ui_tabs
 
 WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LORA_DIR = WEBUI_ROOT / "models" / "Lora"
-CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+EXTENSION_ROOT = Path(__file__).resolve().parent.parent
+CONFIG_FILE = EXTENSION_ROOT / "config.json"
 
 def _load_config():
+    # 旧パス(scripts/config.json)から自動移行
+    old_cfg = Path(__file__).resolve().parent / "config.json"
+    if old_cfg.exists() and not CONFIG_FILE.exists():
+        try:
+            CONFIG_FILE.write_text(old_cfg.read_text(encoding="utf-8"), encoding="utf-8")
+            old_cfg.unlink()
+        except Exception:
+            pass
     try:
         if CONFIG_FILE.exists():
             return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
@@ -284,7 +293,13 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 #settings-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
   width: 420px; max-width: 92vw; padding: 24px; display: flex; flex-direction: column; gap: 18px;
   box-shadow: 0 12px 48px var(--shadow); }
-#settings-title { font-size: 16px; font-weight: 700; color: var(--acc); }
+#settings-title { display: flex; align-items: center; justify-content: space-between; }
+#settings-title-text { font-size: 16px; font-weight: 700; color: var(--acc); }
+#settings-close { width: 32px; height: 32px; background: var(--bg4); border: none; border-radius: 50%;
+  color: var(--txt3); font-size: 18px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s; flex-shrink: 0; }
+#settings-close:hover { background: var(--bg4h); color: var(--txt); }
 .settings-row { display: flex; flex-direction: column; gap: 6px; }
 .settings-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--txt); }
@@ -293,7 +308,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
   transition: border-color 0.15s; }
 .settings-input:focus { outline: none; border-color: var(--pri); }
 .settings-hint { font-size: 12px; color: var(--txt4); font-weight: 400; letter-spacing: 0; text-transform: none; }
-#settings-footer { display: flex; gap: 8px; justify-content: flex-end; }
 .settings-toggle-row { display: flex; align-items: center; justify-content: space-between; }
 .settings-toggle-label { font-size: 14px; color: var(--txt3); font-weight: 400; }
 .toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
@@ -418,52 +432,57 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 /* ── トースト ── */
 #sidebar-header { display: flex; align-items: center; justify-content: flex-end;
   padding: 6px 8px; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
-#folder-mgr-btn { background: none; border: 1px solid transparent; border-radius: 6px;
-  color: var(--txt4); font-size: 14px; cursor: pointer; padding: 3px 7px;
-  transition: all 0.12s; line-height: 1; }
-#folder-mgr-btn:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
-#folder-mgr-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-  display: none; align-items: center; justify-content: center; z-index: 9500; }
-#folder-mgr-overlay.open { display: flex; }
-#folder-mgr-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
-  width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
-  box-shadow: 0 12px 48px var(--shadow); }
-#folder-mgr-head { padding: 14px 18px 12px; display: flex; align-items: center;
-  justify-content: space-between; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
-#folder-mgr-title { font-size: 15px; font-weight: 700; color: var(--acc); }
-#folder-mgr-new-root { font-size: 12px; padding: 3px 10px; opacity: 0.85; }
-#folder-mgr-new-root:hover { opacity: 1; }
-#folder-mgr-close { background: none; border: none; color: var(--txt4); font-size: 18px;
-  cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: all 0.15s; }
-#folder-mgr-close:hover { background: var(--bg4h); color: var(--txt); }
-#folder-mgr-body { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
-#folder-mgr-add { padding: 12px 14px; border-top: 1px solid var(--bd); display: flex; gap: 6px; flex-shrink: 0; }
-#folder-mgr-add input { flex: 1; background: var(--bg3); border: 1px solid var(--bd2);
-  border-radius: 6px; color: var(--txt); font-size: 13px; padding: 6px 10px; }
-#folder-mgr-add input:focus { outline: none; border-color: var(--pri); }
-#folder-mgr-add select { background: var(--bg3); border: 1px solid var(--bd2);
-  border-radius: 6px; color: var(--txt); font-size: 13px; padding: 6px 8px; }
-#folder-mgr-add button { padding: 6px 14px; background: var(--pri-bg); border: 1px solid var(--pri);
-  border-radius: 6px; color: var(--acc); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-#folder-mgr-add button:hover { background: var(--pri-bg2); }
-.fmgr-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px;
-  border-radius: 6px; transition: background 0.12s; cursor: default; }
-.fmgr-row:hover { background: var(--pri-bg); }
-.fmgr-toggle { width: 16px; flex-shrink: 0; font-size: 10px; color: var(--txt4);
-  cursor: pointer; user-select: none; text-align: center; }
-.fmgr-icon { flex-shrink: 0; font-size: 13px; opacity: 0.6; user-select: none; }
-.fmgr-name { flex: 1; font-size: 13px; color: var(--txt2); min-width: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fmgr-name-input { flex: 1; background: var(--bg3); border: 1px solid var(--pri);
-  border-radius: 4px; color: var(--txt); font-size: 13px; padding: 2px 6px; }
-.fmgr-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
-.fmgr-row:hover .fmgr-actions { opacity: 1; }
+#folder-mgr-btn:hover { border-color: var(--pri) !important; color: var(--acc) !important; background: var(--pri-bg) !important; }
+.stree-row { position: relative; }
+.stree-row.stree-drag-over { background: rgba(59,130,246,0.18); border-left: 3px solid #3b82f6;
+  padding-left: 5px !important; border-radius: 6px; }
+.stree-row.stree-dragging { opacity: 0.3; background: var(--bg4h);
+  border: 1px dashed var(--bd2); border-radius: 6px; }
+.stree-handle { color: var(--txt3); font-size: 17px; cursor: grab; padding: 0 2px;
+  user-select: none; opacity: 0; flex-shrink: 0; line-height: 1; }
+.stree-row:hover .stree-handle { opacity: 0.75; }
+.stree-row:active .stree-handle { cursor: grabbing; }
+.stree-kebab { background: none; border: none; color: var(--txt4); font-size: 16px;
+  cursor: pointer; padding: 0 5px; opacity: 0; flex-shrink: 0; line-height: 1;
+  transition: opacity 0.12s, color 0.12s; border-radius: 4px; }
+.stree-row:hover .stree-kebab, .all-row:hover .stree-kebab { opacity: 0.6; }
+.stree-kebab:hover { opacity: 1 !important; color: var(--acc); background: var(--pri-bg); }
+.stree-name-input { background: var(--bg3); border: 1px solid var(--pri);
+  border-radius: 4px; color: var(--txt); font-size: 13px; padding: 2px 6px; flex: 1; min-width: 0; }
+.fmgr-menu { position: fixed; background: var(--bg2); border: 1px solid var(--bd);
+  border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.35); min-width: 180px;
+  z-index: 9999; overflow: hidden; padding: 4px 0; }
+.fmgr-menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  font-size: 13px; color: var(--txt2); cursor: pointer; transition: background 0.1s; user-select: none; }
+.fmgr-menu-item:hover { background: var(--pri-bg); color: var(--acc); }
+.fmgr-menu-item.danger { color: #e06060; }
+.fmgr-menu-item.danger:hover { background: rgba(200,80,80,0.12); color: #f77; }
+.fmgr-menu-item .mi-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.fmgr-menu-divider { height: 1px; background: var(--bd); margin: 4px 0; }
 .fmgr-btn { background: none; border: 1px solid transparent; border-radius: 5px;
   color: var(--txt3); font-size: 11px; font-weight: 500; cursor: pointer;
   padding: 2px 8px; transition: all 0.12s; white-space: nowrap; }
 .fmgr-btn:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
-.fmgr-btn.del { color: var(--txt4); }
-.fmgr-btn.del:hover { border-color: #c55; color: #f66; background: rgba(200,80,80,0.1); }
+.fmgr-create-panel { position: fixed; background: var(--bg2); border: 1px solid var(--bd);
+  border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.35); padding: 14px 16px;
+  z-index: 9999; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
+.fmgr-create-panel-title { font-size: 13px; font-weight: 700; color: var(--acc); }
+.fmgr-create-panel-loc { font-size: 11px; color: var(--txt4); }
+.fmgr-create-panel-loc span { color: var(--txt3); font-weight: 500; }
+.fmgr-create-panel input { background: var(--bg3); border: 1px solid var(--pri);
+  border-radius: 6px; color: var(--txt); font-size: 13px; padding: 6px 10px;
+  outline: none; width: 100%; box-sizing: border-box; }
+.fmgr-create-panel-btns { display: flex; gap: 6px; justify-content: flex-end; }
+.fmgr-create-panel-btns button { padding: 5px 14px; border-radius: 6px; font-size: 12px;
+  font-weight: 600; cursor: pointer; border: 1px solid var(--bd2); background: var(--bg3);
+  color: var(--txt2); transition: all 0.12s; }
+.fmgr-create-panel-btns button.primary { background: var(--pri-bg); border-color: var(--pri); color: var(--acc); }
+.fmgr-create-panel-btns button:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
+.stree-drop-line { height: 3px; background: #3b82f6; border-radius: 2px;
+  margin: 0 6px; display: none; pointer-events: none; position: relative; }
+.stree-drop-line.show { display: block; }
+.stree-drop-line.show::before { content: ''; position: absolute; left: -4px; top: -4px;
+  width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--pri); color: white; padding: 10px 20px; border-radius: 20px;
   font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 9999;
@@ -482,9 +501,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 <!-- Layout -->
 <div id="layout">
   <div id="sidebar">
-    <div id="sidebar-header">
-      <button id="folder-mgr-btn" onclick="openFolderMgr()" title="Manage folders">📁</button>
-    </div>
     <div id="cat-list"></div>
   </div>
   <div id="main">
@@ -497,14 +513,13 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
         <option value="date">Added</option>
       </select>
       <button id="sort-dir-btn" class="hdr-btn" onclick="toggleSortDir()" title="Sort direction">↑</button>
-      <div style="flex:1"></div>
       <div class="hdr-sep"></div>
       <div class="sp-btns">
         <button class="sp-btn" id="sp-thumb-sm" onclick="setThumbSize('sm')">S</button>
         <button class="sp-btn" id="sp-thumb-md" onclick="setThumbSize('md')">M</button>
         <button class="sp-btn" id="sp-thumb-lg" onclick="setThumbSize('lg')">L</button>
       </div>
-      <div class="hdr-sep"></div>
+      <div style="flex:1"></div>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="Settings">⚙</button>
@@ -518,45 +533,48 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 <!-- Settings Overlay -->
 <div id="settings-overlay" style="display:none" onclick="onSettingsOverlayClick(event)">
   <div id="settings-modal">
-    <div id="settings-title">⚙ Settings</div>
+    <div id="settings-title">
+      <span id="settings-title-text">⚙ Settings</span>
+      <button id="settings-close" onclick="closeSettings()">✕</button>
+    </div>
     <div class="settings-row">
       <div class="settings-label">LoRA Folder Path</div>
       <input id="settings-lora-dir" class="settings-input" type="text"
-        placeholder="e.g. D:/models/Lora  (leave blank to use WebUI default)">
+        placeholder="Leave blank to use WebUI default"
+        onblur="autoSaveLoraDirSetting()">
       <div class="settings-hint">Leave blank to use the WebUI default path. Reload required after change.</div>
     </div>
     <div class="settings-row">
       <div class="settings-label">civitai API Key</div>
       <input id="settings-civitai-key" class="settings-input" type="password"
-        placeholder="e.g. xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        autocomplete="off">
+        placeholder=""
+        autocomplete="off"
+        onblur="autoSaveCivitaiKeySetting()">
       <div class="settings-hint">civitai → Account Settings → API Keys. Basic fetch works without a key.</div>
     </div>
     <div class="settings-row">
       <div class="settings-label">Sidebar</div>
       <div class="settings-toggle-row">
         <span class="settings-toggle-label">Show Favorites</span>
-        <label class="toggle-switch"><input type="checkbox" id="settings-show-favs"><span class="toggle-track"></span></label>
+        <label class="toggle-switch"><input type="checkbox" id="settings-show-favs"
+          onchange="setSetting('show_favs', this.checked ? '1' : '0'); rebuildSidebar()"><span class="toggle-track"></span></label>
       </div>
       <div class="settings-toggle-row">
         <span class="settings-toggle-label">Show Recently Used</span>
-        <label class="toggle-switch"><input type="checkbox" id="settings-show-recent"><span class="toggle-track"></span></label>
+        <label class="toggle-switch"><input type="checkbox" id="settings-show-recent"
+          onchange="setSetting('show_recent', this.checked ? '1' : '0'); rebuildSidebar()"><span class="toggle-track"></span></label>
       </div>
     </div>
     <div class="settings-row">
       <div class="settings-label">civitai Metadata</div>
       <button class="modal-action-btn fetch-btn" id="bulk-fetch-start-btn" style="width:100%;justify-content:center"
-        onclick="saveSettingsOnly();startBulkFetch()">☁ Fetch All</button>
+        onclick="startBulkFetch()">☁ Fetch All</button>
     </div>
     <div id="bulk-fetch-progress">
       <div id="bulk-fetch-bar-wrap"><div id="bulk-fetch-bar"></div></div>
       <div id="bulk-fetch-status"></div>
       <div id="bulk-fetch-result"></div>
       <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true" style="align-self:flex-end">■ Stop</button>
-    </div>
-    <div id="settings-footer">
-      <button class="modal-action-btn" onclick="closeSettings()">Close</button>
-      <button class="modal-action-btn civitai-btn" onclick="saveSettings()">Save</button>
     </div>
   </div>
 </div>
@@ -601,20 +619,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       <button class="tw-save-btn" onclick="saveTagsEdit()" style="flex:2;padding:8px">Save</button>
       <button class="tw-cancel-btn" onclick="cancelEditTags()" style="flex:1;padding:8px">Cancel</button>
     </div>
-  </div>
-</div>
-
-<!-- Folder Manager -->
-<div id="folder-mgr-overlay" onclick="onFolderMgrOverlayClick(event)">
-  <div id="folder-mgr-modal">
-    <div id="folder-mgr-head">
-      <div id="folder-mgr-title">📁 Folder Manager</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button id="folder-mgr-new-root" class="fmgr-btn" onclick="showFmgrCreate(document.getElementById('folder-mgr-body'), '')" title="Create root folder">+ New Folder</button>
-        <button id="folder-mgr-close" onclick="closeFolderMgr()">✕</button>
-      </div>
-    </div>
-    <div id="folder-mgr-body"></div>
   </div>
 </div>
 
@@ -780,6 +784,11 @@ function rebuildSidebar() {
   buildSidebar();
   applyFilter();
 }
+function rebuildSidebarPreserveExpanded() {
+  const expanded = getExpandedPaths();
+  rebuildSidebar();
+  restoreExpandedPaths(expanded);
+}
 function buildSidebar() {
   const list = document.getElementById('cat-list');
   const showFavs = getSetting('show_favs', '1') === '1';
@@ -799,22 +808,39 @@ function buildSidebar() {
     list.appendChild(Object.assign(document.createElement('div'), { className: 'sidebar-divider' }));
   }
 
+  const allRow = document.createElement('div');
+  allRow.className = 'all-row';
+  allRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
+
   const allBtn = document.createElement('button');
   allBtn.className = 'cat-btn';
   allBtn.id = 'all-sidebar-btn';
   allBtn.dataset.cat = '';
+  allBtn.style.flex = '1';
   allBtn.innerHTML =
     `<div class="cat-accent"></div>` +
     `<div class="cat-inner">` +
     `<span class="cat-label">All</span>` +
-    `<span class="cat-badge">${allLoras.length}</span>` +
     `</div>`;
   allBtn.addEventListener('click', () => setCat('', allBtn));
   allBtn.classList.add('active');
-  list.appendChild(allBtn);
 
+  const allKebab = document.createElement('button');
+  allKebab.className = 'stree-kebab'; allKebab.textContent = '⋮'; allKebab.title = 'Options';
+  allKebab.addEventListener('click', e => {
+    e.stopPropagation();
+    openFmgrMenu(allKebab, [
+      { icon: '📁', label: 'New Folder', action: () => showFmgrCreate(allKebab, '') }
+    ]);
+  });
+
+  allRow.appendChild(allBtn);
+  allRow.appendChild(allKebab);
+  list.appendChild(allRow);
+
+  loadFmgrOrder();
   const tree = buildCatTree();
-  renderSidebarNode(tree, list, 0);
+  renderSidebarNode(tree, list, 0, '');
 }
 
 function buildCatTree() {
@@ -1028,13 +1054,18 @@ async function moveLora(name, targetFolder) {
     loadLoras();
   } catch(e) { showToast('Error: ' + e.message); }
 }
-function renderSidebarNode(node, container, depth) {
-  Object.keys(node.dirs).sort((a, b) => a.localeCompare(b, 'ja')).forEach(dirName => {
+function renderSidebarNode(node, container, depth, parentPath) {
+  getFmgrSortedKeys(node.dirs, parentPath).forEach(dirName => {
     const child = node.dirs[dirName];
+    if (!child) return;
     const hasChildren = Object.keys(child.dirs).length > 0;
 
     const item = document.createElement('div');
     item.className = 'stree-item';
+
+    const dropBefore = document.createElement('div');
+    dropBefore.className = 'stree-drop-line';
+    item.appendChild(dropBefore);
 
     const row = document.createElement('div');
     row.className = 'stree-row';
@@ -1052,19 +1083,113 @@ function renderSidebarNode(node, container, depth) {
     nameSpan.textContent = dirName;
     row.appendChild(nameSpan);
 
-    const badge = document.createElement('span');
-    badge.className = 'cat-badge';
-    badge.style.cssText = 'font-size:11px;margin-right:4px;flex-shrink:0';
-    badge.textContent = child.directCount || 0;
-    row.appendChild(badge);
+    const kebab = document.createElement('button');
+    kebab.className = 'stree-kebab'; kebab.textContent = '⋮'; kebab.title = 'Options';
+    kebab.addEventListener('click', e => {
+      e.stopPropagation();
+      openFmgrMenu(kebab, [
+        { icon: '✏️', label: 'Rename', action: () => setTimeout(() => startSidebarRename(row, nameSpan, child.path), 80) },
+        { icon: '📁', label: 'New Subfolder', action: () => showFmgrCreate(kebab, child.path) },
+        '-',
+        { icon: '🗑', label: 'Delete Folder', danger: true, action: () => deleteFolderFromMgr(child.path) }
+      ]);
+    });
+    row.appendChild(kebab);
+
+    const handle = document.createElement('span');
+    handle.className = 'stree-handle'; handle.textContent = '⠿'; handle.title = 'Drag to reorder';
+    row.appendChild(handle);
 
     row.style.cursor = 'pointer';
     row.addEventListener('click', e => {
-      if (e.target.closest('.stree-rename-input')) return;
+      if (e.target.closest('.stree-name-input') || e.target === kebab || e.target === handle) return;
       setCat(child.path, row);
       if (hasChildren) {
         const exp = item.classList.toggle('expanded');
         indicator.textContent = exp ? '▼' : '▶';
+      }
+    });
+
+
+    // Drag source — only active from handle
+    row.setAttribute('draggable', 'false');
+    handle.addEventListener('mouseenter', () => row.setAttribute('draggable', 'true'));
+    handle.addEventListener('mouseleave', () => { if (!fmgrDragPath) row.setAttribute('draggable', 'false'); });
+    row.addEventListener('dragstart', e => {
+      if (e.dataTransfer.types.includes('text/lora-path')) return;
+      fmgrDragPath = child.path;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/fmgr-folder', child.path);
+      const ghost = document.createElement('div');
+      ghost.style.cssText = 'position:fixed;top:-200px;left:-200px;background:#1e40af;color:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+      ghost.textContent = '📁 ' + dirName;
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 24, 18);
+      setTimeout(() => { ghost.remove(); row.classList.add('stree-dragging'); }, 0);
+    });
+    row.addEventListener('dragend', () => {
+      row.setAttribute('draggable', 'false');
+      row.classList.remove('stree-dragging');
+      clearTimeout(_sidebarExpandTimer); _sidebarExpandTimer = null;
+      clearSidebarDragState();
+      fmgrDragPath = null;
+    });
+
+    let _sidebarExpandTimer = null;
+    row.addEventListener('dragover', e => {
+      if (!fmgrDragPath || fmgrDragPath === child.path) return;
+      if (child.path.startsWith(fmgrDragPath + '/')) return;
+      if (e.dataTransfer.types.includes('text/lora-path') || e.dataTransfer.types.includes('text/lora-multi')) return;
+      e.preventDefault(); e.stopPropagation();
+      clearSidebarDragState();
+      const rect = row.getBoundingClientRect();
+      const ratio = (e.clientY - rect.top) / rect.height;
+      if (ratio >= 0.4) {
+        row.classList.add('stree-drag-over');
+        row.dataset.dropZone = 'into';
+        if (!row.querySelector('.stree-drop-hint')) {
+          const hint = document.createElement('span');
+          hint.className = 'stree-drop-hint';
+          hint.textContent = 'Move inside →';
+          hint.style.cssText = 'font-size:11px;color:#60a5fa;margin-left:6px;pointer-events:none;white-space:nowrap;';
+          row.appendChild(hint);
+        }
+        if (hasChildren && !item.classList.contains('expanded') && !_sidebarExpandTimer) {
+          _sidebarExpandTimer = setTimeout(() => {
+            if (fmgrDragPath && row.classList.contains('stree-drag-over')) {
+              item.classList.add('expanded');
+              indicator.textContent = '▼';
+            }
+          }, 700);
+        }
+      } else {
+        clearTimeout(_sidebarExpandTimer); _sidebarExpandTimer = null;
+        dropBefore.classList.add('show');
+        row.dataset.dropZone = 'before';
+      }
+    });
+    row.addEventListener('dragleave', e => {
+      if (!row.contains(e.relatedTarget)) { clearTimeout(_sidebarExpandTimer); _sidebarExpandTimer = null; clearSidebarDragState(); }
+    });
+    row.addEventListener('drop', async e => {
+      e.preventDefault(); e.stopPropagation();
+      clearTimeout(_sidebarExpandTimer); _sidebarExpandTimer = null;
+      const draggedPath = fmgrDragPath;
+      if (!draggedPath || draggedPath === child.path) return;
+      if (child.path.startsWith(draggedPath + '/')) return;
+      const zone = row.dataset.dropZone || 'into';
+      clearSidebarDragState();
+      const draggedName = draggedPath.split('/').pop();
+      const draggedParent = draggedPath.includes('/') ? draggedPath.split('/').slice(0,-1).join('/') : '';
+      if (zone === 'into') {
+        await moveFolderTo(draggedPath, child.path);
+      } else {
+        if (draggedParent === parentPath) {
+          reorderFmgr(parentPath, draggedName, dirName, true);
+        } else {
+          const ok = await moveFolderTo(draggedPath, parentPath);
+          if (ok) reorderFmgr(parentPath, draggedName, dirName, true);
+        }
       }
     });
 
@@ -1074,12 +1199,68 @@ function renderSidebarNode(node, container, depth) {
     if (hasChildren) {
       const children = document.createElement('div');
       children.className = 'stree-children';
-      renderSidebarNode(child, children, depth + 1);
+      renderSidebarNode(child, children, depth + 1, child.path);
       item.appendChild(children);
     }
 
+    // Drop zone at the bottom of this item's level
+    const bottomZone = document.createElement('div');
+    bottomZone.style.cssText = 'height:0;';
+    bottomZone.addEventListener('dragover', e => {
+      if (!fmgrDragPath || e.dataTransfer.types.includes('text/lora-path')) return;
+      e.preventDefault(); e.stopPropagation();
+      bottomZone.style.borderTop = '3px solid #3b82f6';
+    });
+    bottomZone.addEventListener('dragleave', () => { bottomZone.style.borderTop = ''; });
+    bottomZone.addEventListener('drop', async e => {
+      e.preventDefault(); e.stopPropagation();
+      bottomZone.style.borderTop = '';
+      if (!fmgrDragPath) return;
+      const draggedPath = fmgrDragPath;
+      const draggedName = draggedPath.split('/').pop();
+      const draggedParent = draggedPath.includes('/') ? draggedPath.split('/').slice(0,-1).join('/') : '';
+      if (draggedParent === parentPath) {
+        const siblings = Object.keys(node.dirs);
+        let order = getFmgrSortedKeys(node.dirs, parentPath).filter(n => n !== draggedName);
+        const myIdx = order.indexOf(dirName);
+        order.splice(myIdx + 1, 0, draggedName);
+        fmgrOrder[parentPath] = order;
+        saveFmgrOrder(); rebuildSidebarPreserveExpanded();
+      } else {
+        await moveFolderTo(draggedPath, parentPath);
+      }
+    });
+    item.appendChild(bottomZone);
+
     container.appendChild(item);
   });
+
+  // Final bottom zone for the container
+  const containerBottom = document.createElement('div');
+  containerBottom.style.cssText = 'height:0;';
+  containerBottom.addEventListener('dragover', e => {
+    if (!fmgrDragPath || e.dataTransfer.types.includes('text/lora-path')) return;
+    e.preventDefault(); e.stopPropagation();
+    containerBottom.style.borderTop = '3px solid #3b82f6';
+  });
+  containerBottom.addEventListener('dragleave', () => { containerBottom.style.borderTop = ''; });
+  containerBottom.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation();
+    containerBottom.style.borderTop = '';
+    if (!fmgrDragPath) return;
+    const draggedPath = fmgrDragPath;
+    const draggedName = draggedPath.split('/').pop();
+    const draggedParent = draggedPath.includes('/') ? draggedPath.split('/').slice(0,-1).join('/') : '';
+    if (draggedParent === parentPath) {
+      const order = getFmgrSortedKeys(node.dirs, parentPath).filter(n => n !== draggedName);
+      order.push(draggedName);
+      fmgrOrder[parentPath] = order;
+      saveFmgrOrder(); rebuildSidebarPreserveExpanded();
+    } else {
+      await moveFolderTo(draggedPath, parentPath);
+    }
+  });
+  container.appendChild(containerBottom);
 }
 
 function makeFlatBtn(cat, label, count) {
@@ -1090,7 +1271,6 @@ function makeFlatBtn(cat, label, count) {
     `<div class="cat-accent"></div>` +
     `<div class="cat-inner">` +
     `<span class="cat-label">${esc(label)}</span>` +
-    `<span class="cat-badge">${count}</span>` +
     `</div>`;
   btn.addEventListener('click', () => setCat(cat, btn));
   return btn;
@@ -1238,7 +1418,7 @@ function onCardSendTxt(e, btn) {
 function onCardCivitai(e, modelId, versionId) {
   e.stopPropagation();
   window.open('https://civitai.com/models/' + modelId +
-    (versionId ? '?modelVersionId=' + versionId : ''), '_blank');
+    (versionId ? '?modelVersionId=' + versionId : ''), '_blank', 'noopener,noreferrer');
 }
 
 function onCardOpenFolder(e, name) {
@@ -1735,7 +1915,7 @@ function openCivitai() {
   const versionId = btn.dataset.versionId;
   if (!modelId) return;
   window.open('https://civitai.com/models/' + modelId +
-    (versionId ? '?modelVersionId=' + versionId : ''), '_blank');
+    (versionId ? '?modelVersionId=' + versionId : ''), '_blank', 'noopener,noreferrer');
 }
 
 async function fetchCivitai() {
@@ -1822,7 +2002,6 @@ async function startBulkFetch() {
 }
 
 async function openSettings() {
-  document.getElementById('settings-civitai-key').value = getSetting('civitai_api_key', '');
   document.getElementById('settings-show-favs').checked = getSetting('show_favs', '1') === '1';
   document.getElementById('settings-show-recent').checked = getSetting('show_recent', '1') === '1';
   document.getElementById('bulk-fetch-progress').style.display = 'none';
@@ -1830,6 +2009,7 @@ async function openSettings() {
     const res = await fetch('/lora_browser/config');
     const cfg = await res.json();
     document.getElementById('settings-lora-dir').value = cfg.lora_dir || '';
+    document.getElementById('settings-civitai-key').value = cfg.civitai_api_key || '';
   } catch(e) {}
   document.getElementById('settings-overlay').style.display = 'flex';
 }
@@ -1837,162 +2017,164 @@ function closeSettings() {
   if (bulkFetchRunning) return;
   document.getElementById('settings-overlay').style.display = 'none';
 }
-function _saveSettingsLocal() {
-  setSetting('civitai_api_key', document.getElementById('settings-civitai-key').value.trim());
-  setSetting('show_favs', document.getElementById('settings-show-favs').checked ? '1' : '0');
-  setSetting('show_recent', document.getElementById('settings-show-recent').checked ? '1' : '0');
+async function autoSaveCivitaiKeySetting() {
+  const key = document.getElementById('settings-civitai-key').value.trim();
+  _civitaiApiKey = key;
+  await fetch('/lora_browser/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({civitai_api_key: key})
+  });
+  showToast('Saved');
 }
-async function saveSettings() {
-  _saveSettingsLocal();
+async function autoSaveLoraDirSetting() {
   const loraDir = document.getElementById('settings-lora-dir').value.trim();
   await fetch('/lora_browser/config', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({lora_dir: loraDir})
   });
-  rebuildSidebar();
-  closeSettings();
-  showToast('Settings saved');
-}
-async function saveSettingsOnly() {
-  _saveSettingsLocal();
-  const loraDir = document.getElementById('settings-lora-dir').value.trim();
-  await fetch('/lora_browser/config', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({lora_dir: loraDir})
-  });
+  showToast('Saved');
+  await loadLoras();
 }
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
 }
 /* ── Folder Manager ── */
-function openFolderMgr() {
-  renderFolderMgr();
-  document.getElementById('folder-mgr-overlay').classList.add('open');
+let fmgrOrder = {};
+let fmgrDragPath = null;
+function loadFmgrOrder() { try { fmgrOrder = JSON.parse(localStorage.getItem('lora_fmgr_order') || '{}'); } catch { fmgrOrder = {}; } }
+function saveFmgrOrder() { localStorage.setItem('lora_fmgr_order', JSON.stringify(fmgrOrder)); }
+function getFmgrSortedKeys(children, parentPath) {
+  const names = Object.keys(children);
+  const order = (fmgrOrder[parentPath] || []).filter(n => !n.startsWith('__sep__'));
+  const ordered = order.filter(n => names.includes(n));
+  const rest = names.filter(n => !ordered.includes(n)).sort((a,b) => a.localeCompare(b,'ja'));
+  return [...ordered, ...rest];
 }
-function closeFolderMgr() {
-  document.getElementById('folder-mgr-overlay').classList.remove('open');
+let _fmgrMenu = null;
+function closeFmgrMenu() { if (_fmgrMenu) { _fmgrMenu.remove(); _fmgrMenu = null; } }
+function openFmgrMenu(trigger, items) {
+  closeFmgrMenu();
+  const menu = document.createElement('div');
+  menu.className = 'fmgr-menu';
+  items.forEach(item => {
+    if (item === '-') { const d = document.createElement('div'); d.className = 'fmgr-menu-divider'; menu.appendChild(d); return; }
+    const el = document.createElement('div');
+    el.className = 'fmgr-menu-item' + (item.danger ? ' danger' : '');
+    el.innerHTML = `<span class="mi-icon">${item.icon}</span><span>${item.label}</span>`;
+    el.addEventListener('mousedown', e => { e.stopPropagation(); closeFmgrMenu(); item.action(); });
+    menu.appendChild(el);
+  });
+  document.body.appendChild(menu);
+  _fmgrMenu = menu;
+  const rect = trigger.getBoundingClientRect();
+  const mw = 190;
+  let left = rect.right - mw;
+  if (left < 4) left = rect.left;
+  let top = rect.bottom + 4;
+  if (top + 200 > window.innerHeight) top = rect.top - menu.offsetHeight - 4;
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  setTimeout(() => document.addEventListener('click', closeFmgrMenu, { once: true }), 0);
 }
-function onFolderMgrOverlayClick(e) {
-  if (e.target === document.getElementById('folder-mgr-overlay')) closeFolderMgr();
+function clearSidebarDragState() {
+  document.querySelectorAll('.stree-drag-over').forEach(el => el.classList.remove('stree-drag-over'));
+  document.querySelectorAll('.stree-drop-line.show').forEach(el => el.classList.remove('show'));
+  document.querySelectorAll('.stree-drop-hint').forEach(el => el.remove());
 }
-function buildFmgrTree() {
-  const tree = { children: {}, path: '' };
-  [...allFolders].sort((a,b) => a.localeCompare(b,'ja')).forEach(path => {
-    const parts = path.split('/').filter(Boolean);
-    let node = tree;
-    parts.forEach((part, i) => {
-      if (!node.children[part]) node.children[part] = { children: {}, path: parts.slice(0,i+1).join('/') };
-      node = node.children[part];
+async function moveFolderTo(folderPath, newParent) {
+  try {
+    const res = await fetch('/lora_browser/move_folder', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({folder_path: folderPath, new_parent: newParent})
     });
-  });
-  return tree;
+    if (!res.ok) { showToast((await res.json()).error || 'Move failed'); return false; }
+    const folderName = folderPath.split('/').pop();
+    const oldParent = folderPath.includes('/') ? folderPath.split('/').slice(0,-1).join('/') : '';
+    if (fmgrOrder[oldParent]) fmgrOrder[oldParent] = fmgrOrder[oldParent].filter(n => n !== folderName);
+    if (!fmgrOrder[newParent]) fmgrOrder[newParent] = [];
+    if (!fmgrOrder[newParent].includes(folderName)) fmgrOrder[newParent].unshift(folderName);
+    saveFmgrOrder();
+    await loadLoras();
+    return true;
+  } catch { showToast('Move failed'); return false; }
 }
-function renderFolderMgr() {
-  const body = document.getElementById('folder-mgr-body');
-  body.innerHTML = '';
-  const tree = buildFmgrTree();
-  if (!Object.keys(tree.children).length) {
-    body.innerHTML = '<div style="color:var(--txt4);font-size:13px;padding:8px 4px">No folders</div>';
-    return;
-  }
-  renderFmgrNode(tree.children, body, 0);
-}
-function renderFmgrNode(dirs, container, depth) {
-  Object.keys(dirs).sort((a,b) => a.localeCompare(b,'ja')).forEach(name => {
-    const node = dirs[name];
-    const hasChildren = Object.keys(node.children).length > 0;
-    const wrap = document.createElement('div');
-
-    const row = document.createElement('div');
-    row.className = 'fmgr-row';
-    row.style.paddingLeft = (depth * 16 + 8) + 'px';
-
-    const toggle = document.createElement('span');
-    toggle.className = 'fmgr-toggle';
-    toggle.textContent = hasChildren ? '▶' : '';
-
-    const icon = document.createElement('span');
-    icon.className = 'fmgr-icon';
-    icon.textContent = hasChildren ? '📂' : '📁';
-
-    const nameEl = document.createElement('span');
-    nameEl.className = 'fmgr-name';
-    nameEl.title = node.path;
-    nameEl.textContent = name;
-
-    const actions = document.createElement('div');
-    actions.className = 'fmgr-actions';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'fmgr-btn'; addBtn.title = 'Create subfolder'; addBtn.textContent = '+ New';
-    addBtn.onclick = e => { e.stopPropagation(); showFmgrCreate(wrap, node.path); };
-
-    const renBtn = document.createElement('button');
-    renBtn.className = 'fmgr-btn'; renBtn.title = 'Rename folder'; renBtn.textContent = 'Rename';
-    renBtn.onclick = e => { e.stopPropagation(); startFolderMgrRename(row, nameEl, node.path); };
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'fmgr-btn del'; delBtn.title = 'Delete folder'; delBtn.textContent = 'Delete';
-    delBtn.onclick = e => { e.stopPropagation(); deleteFolderFromMgr(node.path); };
-
-    actions.appendChild(addBtn); actions.appendChild(renBtn); actions.appendChild(delBtn);
-    row.appendChild(toggle); row.appendChild(icon); row.appendChild(nameEl); row.appendChild(actions);
-    wrap.appendChild(row);
-
-    if (hasChildren) {
-      const childWrap = document.createElement('div');
-      childWrap.style.display = 'none';
-      renderFmgrNode(node.children, childWrap, depth + 1);
-      wrap.appendChild(childWrap);
-      const toggleExpand = e => {
-        e.stopPropagation();
-        const open = childWrap.style.display === 'none';
-        childWrap.style.display = open ? '' : 'none';
-        toggle.textContent = open ? '▼' : '▶';
-        icon.textContent = open ? '📂' : '📂';
-      };
-      toggle.addEventListener('click', toggleExpand);
-      icon.addEventListener('click', toggleExpand);
-      nameEl.style.cursor = 'pointer';
-      nameEl.addEventListener('click', toggleExpand);
+function reorderFmgr(parentPath, draggedName, targetName, before) {
+  const directChildren = {};
+  allFolders.forEach(p => {
+    if (parentPath === '') {
+      if (!p.includes('/')) directChildren[p] = true;
+    } else {
+      if (p.startsWith(parentPath + '/') && !p.slice(parentPath.length + 1).includes('/'))
+        directChildren[p.slice(parentPath.length + 1)] = true;
     }
-    container.appendChild(wrap);
   });
+  let names = getFmgrSortedKeys(directChildren, parentPath);
+  names = names.filter(n => n !== draggedName);
+  const idx = names.indexOf(targetName);
+  if (idx === -1) names.push(draggedName);
+  else if (before) names.splice(idx, 0, draggedName);
+  else names.splice(idx + 1, 0, draggedName);
+  fmgrOrder[parentPath] = names;
+  saveFmgrOrder();
+  rebuildSidebarPreserveExpanded();
 }
-function showFmgrCreate(parentWrap, parentPath) {
-  const existing = parentWrap.querySelector('.fmgr-create-row');
-  if (existing) { existing.remove(); return; }
-  const row = document.createElement('div');
-  row.className = 'fmgr-row fmgr-create-row';
-  const depth = parentPath ? parentPath.split('/').length : 0;
-  row.style.paddingLeft = (depth * 16 + 8) + 'px';
+let _fmgrCreatePanel = null;
+function closeFmgrCreatePanel() { if (_fmgrCreatePanel) { _fmgrCreatePanel.remove(); _fmgrCreatePanel = null; } }
+function showFmgrCreate(triggerEl, parentPath) {
+  closeFmgrCreatePanel();
+  const panel = document.createElement('div');
+  panel.className = 'fmgr-create-panel';
+  _fmgrCreatePanel = panel;
+
+  const title = document.createElement('div');
+  title.className = 'fmgr-create-panel-title';
+  title.textContent = '📁 New Folder';
+
+  const loc = document.createElement('div');
+  loc.className = 'fmgr-create-panel-loc';
+  loc.innerHTML = 'Location: <span>' + (parentPath || 'Root') + '</span>';
+
   const inp = document.createElement('input');
-  inp.placeholder = 'New folder name';
-  inp.style.cssText = 'flex:1;background:var(--bg3);border:1px solid var(--pri);border-radius:4px;color:var(--txt);font-size:13px;padding:3px 8px';
-  const ok = document.createElement('button');
-  ok.className = 'fmgr-btn'; ok.textContent = '✓';
-  const cancel = document.createElement('button');
-  cancel.className = 'fmgr-btn'; cancel.textContent = '×';
-  cancel.onclick = () => row.remove();
+  inp.placeholder = 'Folder name';
+
+  const btns = document.createElement('div');
+  btns.className = 'fmgr-create-panel-btns';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeFmgrCreatePanel;
+  const createBtn = document.createElement('button');
+  createBtn.className = 'primary'; createBtn.textContent = 'Create';
+
   const commit = async () => {
-    const name = inp.value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-    if (!name) return;
-    const fullPath = parentPath ? parentPath + '/' + name : name;
-    row.remove();
-    await createFolder(fullPath);
-    renderFolderMgr();
+    const name = inp.value.trim().replace(/[/\\]+/g, '').replace(/^\.+$/, '');
+    if (!name) { inp.focus(); return; }
+    closeFmgrCreatePanel();
+    await createFolder(parentPath ? parentPath + '/' + name : name);
   };
-  ok.onclick = commit;
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') row.remove(); });
-  row.appendChild(inp); row.appendChild(ok); row.appendChild(cancel);
-  parentWrap.appendChild(row);
-  inp.focus();
+  createBtn.onclick = commit;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') closeFmgrCreatePanel(); });
+
+  btns.appendChild(cancelBtn); btns.appendChild(createBtn);
+  panel.appendChild(title); panel.appendChild(loc); panel.appendChild(inp); panel.appendChild(btns);
+  document.body.appendChild(panel);
+
+  const rect = triggerEl.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  if (left + 280 > window.innerWidth) left = window.innerWidth - 284;
+  if (top + 160 > window.innerHeight) top = rect.top - 160;
+  panel.style.top = top + 'px'; panel.style.left = left + 'px';
+
+  setTimeout(() => {
+    inp.focus();
+    document.addEventListener('mousedown', e => { if (!panel.contains(e.target) && e.target !== triggerEl) closeFmgrCreatePanel(); }, { once: true });
+  }, 0);
 }
-function startFolderMgrRename(row, nameEl, folderPath) {
-  if (row.querySelector('.fmgr-name-input')) return;
+function startSidebarRename(row, nameEl, folderPath) {
+  if (row.querySelector('.stree-name-input')) return;
   nameEl.style.display = 'none';
   const inp = document.createElement('input');
-  inp.className = 'fmgr-name-input';
+  inp.className = 'stree-name-input';
   inp.value = folderPath.split('/').pop();
   row.insertBefore(inp, nameEl.nextSibling);
   inp.focus(); inp.select();
@@ -2009,11 +2191,10 @@ function startFolderMgrRename(row, nameEl, folderPath) {
       if (!res.ok) { showToast('Error: ' + (data.error || 'Failed')); cancel(); return; }
       showToast('Renamed');
       await loadLoras();
-      renderFolderMgr();
     } catch(e) { showToast('Error: ' + e.message); cancel(); }
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); });
-  inp.addEventListener('blur', () => setTimeout(cancel, 150));
+  inp.addEventListener('blur', () => setTimeout(cancel, 300));
 }
 async function deleteFolderFromMgr(folderPath) {
   const counts = {};
@@ -2028,31 +2209,14 @@ async function deleteFolderFromMgr(folderPath) {
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
     showToast('Deleted: ' + folderPath);
     await loadLoras();
-    renderFolderMgr();
-  } catch(e) { showToast('Error: ' + e.message); }
-}
-async function addFolderFromMgr() {
-  const parent = document.getElementById('fmgr-parent').value;
-  const name = document.getElementById('fmgr-new-name').value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (!name) return;
-  const fullPath = parent ? parent + '/' + name : name;
-  try {
-    const res = await fetch('/lora_browser/create_folder', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({path: fullPath})
-    });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-    document.getElementById('fmgr-new-name').value = '';
-    showToast('Created: ' + fullPath);
-    await loadLoras();
-    renderFolderMgr();
   } catch(e) { showToast('Error: ' + e.message); }
 }
 
+let _civitaiApiKey = '';
 function getCivitaiHeaders() {
-  const key = getSetting('civitai_api_key', '');
-  return key ? {'Content-Type': 'application/json', 'X-Civitai-Api-Key': key}
-             : {'Content-Type': 'application/json'};
+  return _civitaiApiKey
+    ? {'Content-Type': 'application/json', 'X-Civitai-Api-Key': _civitaiApiKey}
+    : {'Content-Type': 'application/json'};
 }
 
 function getHostWindow() {
@@ -2095,8 +2259,6 @@ function addRecent(name) {
   updateRecentSidebarCount();
 }
 function updateRecentSidebarCount() {
-  const btn = document.getElementById('recent-sidebar-btn');
-  if (btn) btn.querySelector('.cat-badge').textContent = getRecent().length;
   if (activeCat === '__recent__') applyFilter();
 }
 
@@ -2113,9 +2275,6 @@ function toggleFav(name) {
   return favs.includes(name);
 }
 function updateFavSidebarCount() {
-  const btn = document.getElementById('fav-sidebar-btn');
-  if (btn) btn.querySelector('.cat-badge').textContent = getFavs().length;
-  // お気に入りフィルタ中なら再フィルタして件数更新
   if (activeCat === '__fav__') applyFilter();
 }
 
@@ -2360,6 +2519,7 @@ sortDir = getSetting('sort_dir', 'asc');
   const dirBtn = document.getElementById('sort-dir-btn');
   if (dirBtn) dirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
 })();
+fetch('/lora_browser/config').then(r => r.json()).then(cfg => { _civitaiApiKey = cfg.civitai_api_key || ''; }).catch(() => {});
 loadLoras().then(initSettings);
 </script>
 </body>
@@ -2395,10 +2555,11 @@ def _scan_loras():
         category = rel.parent.as_posix() if rel.parent.as_posix() != '.' else ''
 
         preview_rel = None
-        for pext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]:
+        for pext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp",
+                     ".png", ".jpg", ".jpeg", ".webp"]:
             ppath = path.parent / (name + pext)
             if ppath.exists():
-                preview_rel = (path.parent / (name + pext)).relative_to(lora_dir).as_posix()
+                preview_rel = ppath.relative_to(lora_dir).as_posix()
                 break
 
         activation_text = ""
@@ -2588,6 +2749,44 @@ def _register_api(_, app: FastAPI):
         import shutil as _shutil
         _shutil.rmtree(str(target))
         return JSONResponse(content={"ok": True})
+
+    @app.post("/lora_browser/move_folder")
+    async def move_folder_api(request: Request):
+        data = await request.json()
+        folder_path = data.get("folder_path", "").strip()
+        new_parent = data.get("new_parent", "").strip()
+        if not folder_path or ".." in folder_path or ".." in new_parent:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        lora_dir = _get_lora_dir()
+        old_full = lora_dir / folder_path
+        try:
+            old_full.resolve().relative_to(lora_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not old_full.exists() or not old_full.is_dir():
+            return JSONResponse(status_code=404, content={"error": "Folder not found"})
+        folder_name = old_full.name
+        if new_parent:
+            new_parent_full = lora_dir / new_parent
+            try:
+                new_parent_full.resolve().relative_to(lora_dir.resolve())
+            except ValueError:
+                return JSONResponse(status_code=400, content={"error": "Invalid target"})
+            try:
+                new_parent_full.resolve().relative_to(old_full.resolve())
+                return JSONResponse(status_code=400, content={"error": "Cannot move into own subtree"})
+            except ValueError:
+                pass
+            new_full = new_parent_full / folder_name
+        else:
+            new_full = lora_dir / folder_name
+        if new_full.resolve() == old_full.resolve():
+            return JSONResponse(content={"ok": True, "new_path": folder_path})
+        if new_full.exists():
+            return JSONResponse(status_code=400, content={"error": "A folder with this name already exists at target"})
+        old_full.rename(new_full)
+        new_path = (new_parent + "/" + folder_name).lstrip("/") if new_parent else folder_name
+        return JSONResponse(content={"ok": True, "new_path": new_path})
 
     @app.post("/lora_browser/rename_folder")
     async def rename_folder_api(request: Request):
