@@ -4,7 +4,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from modules.script_callbacks import on_app_started, on_ui_tabs
 
-WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+try:
+    from modules import paths as _mp
+    WEBUI_ROOT = Path(getattr(_mp, 'script_path', None) or Path(__file__).resolve().parent.parent.parent.parent)
+except Exception:
+    WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LORA_DIR = WEBUI_ROOT / "models" / "Lora"
 EXTENSION_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = EXTENSION_ROOT / "config.json"
@@ -1799,9 +1803,7 @@ function insertWordToPrompt(word, addComma = true) {
   const cleanWord = word.replace(/,\s*$/, '').trim();
   const fallback = cleanWord + (addComma ? ',' : '');
   try {
-    const w = getHostWindow();
-    if (!w) return fallback;
-    const ta = w.document.querySelector('#txt2img_prompt textarea');
+    const ta = getPromptTextarea(false);
     if (!ta) return fallback;
     const pos = ta.selectionStart;
     const selEnd = ta.selectionEnd;
@@ -1825,9 +1827,7 @@ function insertWordToPrompt(word, addComma = true) {
 
 function removeWordFromPrompt(word, inserted) {
   try {
-    const w = getHostWindow();
-    if (!w) return;
-    const ta = w.document.querySelector('#txt2img_prompt textarea');
+    const ta = getPromptTextarea(false);
     if (!ta) return;
     let v = ta.value;
     let cursorPos = ta.selectionStart;
@@ -2225,11 +2225,24 @@ function getHostWindow() {
   return null;
 }
 
+function getPromptTextarea(neg) {
+  const w = getHostWindow();
+  if (!w) return null;
+  const SELECTORS = neg
+    ? ['#txt2img_neg_prompt textarea', '#txt2img-neg-prompt textarea',
+       '[id$="neg_prompt"] textarea', '[id$="neg-prompt"] textarea']
+    : ['#txt2img_prompt textarea', '#txt2img-prompt textarea',
+       '[id$="_prompt"]:not([id*="neg"]) textarea', '[id$="-prompt"]:not([id*="neg"]) textarea'];
+  for (const sel of SELECTORS) {
+    const el = w.document.querySelector(sel);
+    if (el) return el;
+  }
+  return null;
+}
+
 function tryInsert(text) {
   try {
-    const w = getHostWindow();
-    if (!w) return;
-    const ta = w.document.querySelector('#txt2img_prompt textarea');
+    const ta = getPromptTextarea(false);
     if (!ta) return;
     const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
     const sep = (v && !v.endsWith(' ') && s === v.length) ? ' ' : '';
@@ -2461,9 +2474,7 @@ function toggleSampleSend(el, idx, type) {
 function insertToNegativePrompt(text) {
   const clean = text.replace(/,\s*$/, '').trim();
   try {
-    const w = getHostWindow();
-    if (!w) return clean;
-    const ta = w.document.querySelector('#txt2img_neg_prompt textarea');
+    const ta = getPromptTextarea(true);
     if (!ta) return clean;
     const pos = ta.selectionStart;
     const selEnd = ta.selectionEnd;
@@ -2484,9 +2495,7 @@ function insertToNegativePrompt(text) {
 }
 function removeFromNegativePrompt(text, inserted) {
   try {
-    const w = getHostWindow();
-    if (!w) return;
-    const ta = w.document.querySelector('#txt2img_neg_prompt textarea');
+    const ta = getPromptTextarea(true);
     if (!ta) return;
     let v = ta.value;
     const idx = v.lastIndexOf(inserted);
@@ -2534,10 +2543,27 @@ def _get_lora_dir():
             return p
     try:
         import modules.shared as shared
-        if hasattr(shared, 'opts') and getattr(shared.opts, 'lora_dir', None):
-            return Path(shared.opts.lora_dir)
-        if hasattr(shared, 'cmd_opts') and getattr(shared.cmd_opts, 'lora_dir', None):
-            return Path(shared.cmd_opts.lora_dir)
+        # Check common opts attribute names across webui / Forge / Reforge
+        _LORA_OPT_NAMES = ('lora_dir', 'loras_dir', 'extra_networks_dir_lora', 'lora_models_path')
+        for _src in (getattr(shared, 'opts', None), getattr(shared, 'cmd_opts', None)):
+            if not _src:
+                continue
+            for _attr in _LORA_OPT_NAMES:
+                _val = getattr(_src, _attr, None)
+                if _val:
+                    _p = Path(_val)
+                    if _p.exists():
+                        return _p
+    except Exception:
+        pass
+    # Try modules.paths.models_path for cross-fork compatibility
+    try:
+        from modules import paths as _mp
+        _models = Path(getattr(_mp, 'models_path', '') or '')
+        if _models.exists():
+            _lora = _models / "Lora"
+            if _lora.exists():
+                return _lora
     except Exception:
         pass
     return LORA_DIR
