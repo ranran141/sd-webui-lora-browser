@@ -6,7 +6,20 @@ from modules.script_callbacks import on_app_started, on_ui_tabs
 
 WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LORA_DIR = WEBUI_ROOT / "models" / "Lora"
+CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
 
+def _load_config():
+    try:
+        if CONFIG_FILE.exists():
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+def _save_config(data: dict):
+    cfg = _load_config()
+    cfg.update(data)
+    CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -93,7 +106,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .stree-folder-btn.del:hover { border-color: #c55; color: #f66; background: rgba(200,80,80,0.1); }
 .fm-inline-create { display: flex; gap: 4px; align-items: center;
   padding: 4px 8px; border-bottom: 1px solid var(--bd); background: var(--bg3); }
-#cat-list { overflow-y: auto; flex: 1; padding: 6px 0; }
+#cat-list { overflow-y: auto; flex: 1; padding: 6px 0 240px; min-height: 0; }
 .cat-btn { width: 100%; background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; text-align: left; transition: background 0.12s; }
 .cat-btn:hover { background: var(--pri-bg); }
@@ -131,7 +144,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .stree-item.expanded > .stree-children { display: block; }
 
 /* ── コンテンツエリア ── */
-#content { flex: 1; overflow-y: auto; padding: 16px;
+#content { flex: 1; overflow-y: auto; padding: 16px 16px 240px;
   display: flex; flex-direction: column; gap: 20px; }
 
 /* ── セクションブロック ── */
@@ -156,10 +169,10 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .card-placeholder { width: 100%; height: 100%; display: flex;
   align-items: center; justify-content: center; font-size: 52px; color: var(--bd2); }
 .card-top { position: absolute; top: 0; left: 0; right: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%);
-  padding: 7px 7px 14px; display: flex; align-items: flex-start;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+  padding: 7px 7px 18px; display: flex; align-items: flex-start;
   justify-content: space-between; opacity: 1; }
-.card-base-badge { font-size: 13px; background: rgba(255,255,255,0.15);
+.card-base-badge { font-size: 13px; background: rgba(0,0,0,0.52);
   backdrop-filter: blur(4px); color: #e0e0e0; padding: 2px 7px; border-radius: 8px;
   white-space: nowrap; overflow: hidden; max-width: 90px; text-overflow: ellipsis;
   flex-shrink: 0; margin-top: 1px; }
@@ -173,18 +186,18 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   align-items: center; justify-content: center; font-size: 12px;
   transition: background 0.15s, transform 0.15s; color: #e0e0e0; padding: 0; }
 .card-quick-btn:hover { background: rgba(0,0,0,0.82); transform: scale(1.12); }
-.card-fav-btn { width: 26px; height: 26px; background: rgba(0,0,0,0.4);
-  border: 2px solid transparent; border-radius: 50%; cursor: pointer; display: flex;
+.card-fav-btn { width: 26px; height: 26px; background: rgba(0,0,0,0.52);
+  backdrop-filter: blur(4px); border: 2px solid transparent; border-radius: 50%; cursor: pointer; display: flex;
   align-items: center; justify-content: center; font-size: 14px; color: #e0e0e0;
   transition: background 0.15s, transform 0.15s, border-color 0.15s; }
-.card-fav-btn:hover { background: rgba(0,0,0,0.7); transform: scale(1.15); }
+.card-fav-btn:hover { background: rgba(0,0,0,0.75); transform: scale(1.15); }
 .card-fav-btn.active { color: var(--fav); }
 .card-bottom { position: absolute; bottom: 0; left: 0; right: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, transparent 100%);
-  padding: 20px 8px 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; }
-.card-name { font-size: 14px; font-weight: 600; color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8); line-height: 1.3;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.55) 60%, transparent 100%);
+  padding: 28px 8px 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; }
+.card-name { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
 
 /* ── モーダル ── */
 #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75);
@@ -251,6 +264,40 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .modal-action-btn.send-txt:hover { background: rgba(29,78,216,0.15); border-color: #3b82f6; }
 .modal-action-btn.civitai-btn { border-color: #0e7490; color: #67e8f9; }
 .modal-action-btn.civitai-btn:hover { background: rgba(14,116,144,0.15); border-color: #06b6d4; }
+.modal-action-btn.fetch-btn { border-color: #166534; color: #86efac; }
+.modal-action-btn.fetch-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
+.modal-action-btn.fetch-btn:disabled { opacity: 0.5; cursor: default; }
+#bulk-fetch-progress { display: none; flex-direction: column; gap: 8px; }
+#bulk-fetch-bar-wrap { background: var(--bg3); border-radius: 6px; height: 8px; overflow: hidden; }
+#bulk-fetch-bar { height: 100%; width: 0; background: #22c55e; border-radius: 6px; transition: width 0.2s; }
+#bulk-fetch-status { font-size: 13px; color: var(--txt3); min-height: 18px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+#bulk-fetch-result { font-size: 13px; color: var(--txt2); min-height: 18px; }
+#settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
+  align-items: center; justify-content: center; z-index: 9000; }
+#settings-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
+  width: 420px; max-width: 92vw; padding: 24px; display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 12px 48px var(--shadow); }
+#settings-title { font-size: 16px; font-weight: 700; color: var(--acc); }
+.settings-row { display: flex; flex-direction: column; gap: 6px; }
+.settings-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--txt); }
+.settings-input { background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px;
+  color: var(--txt); font-size: 13px; padding: 8px 10px; width: 100%; box-sizing: border-box;
+  transition: border-color 0.15s; }
+.settings-input:focus { outline: none; border-color: var(--pri); }
+.settings-hint { font-size: 12px; color: var(--txt4); font-weight: 400; letter-spacing: 0; text-transform: none; }
+#settings-footer { display: flex; gap: 8px; justify-content: flex-end; }
+.settings-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.settings-toggle-label { font-size: 14px; color: var(--txt3); font-weight: 400; }
+.toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; background: var(--bd2); border-radius: 11px;
+  cursor: pointer; transition: background 0.2s; }
+.toggle-track::before { content: ''; position: absolute; width: 16px; height: 16px;
+  left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
+.toggle-switch input:checked + .toggle-track { background: var(--pri); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
 #modal-body { display: flex; overflow: hidden; flex: 1; min-height: 0; }
 #modal-preview-col { width: 200px; flex-shrink: 0; background: var(--bg3);
   display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
@@ -281,7 +328,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .info-section { margin-bottom: 16px; }
 .info-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--txt); margin-bottom: 4px; }
-.info-label-hint { display: block; font-size: 13px; color: var(--txt4); font-weight: 400;
+.info-label-hint { display: block; font-size: 12px; color: var(--txt4); font-weight: 400;
   text-transform: none; letter-spacing: 0; margin-top: 2px; margin-left: 0; }
 .info-value { font-size: 13px; color: var(--txt2); line-height: 1.5; }
 .tags-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -298,9 +345,9 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .trained-word-text { font-size: 13px; color: #3b82f6; line-height: 1.5;
   word-break: break-word; flex: 1; }
 .trained-word-item.tw-active .trained-word-text { color: var(--acc); }
-.trained-word-send { display: flex; align-items: center; flex-shrink: 0;
-  color: var(--txt5); width: 18px; height: 18px; opacity: 0.5; }
-.trained-word-item:hover .trained-word-send,
+.trained-word-send { display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  color: var(--txt); width: 24px; font-size: 20px; font-weight: 300; line-height: 1; opacity: 0.45; user-select: none; }
+.trained-word-item:hover .trained-word-send { color: var(--txt); opacity: 0.8; }
 .trained-word-item.tw-active .trained-word-send { color: var(--acc); opacity: 1; }
 
 /* トリガーワード編集UI */
@@ -385,9 +432,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   </div>
   <div id="main">
     <div id="header">
-      <div style="flex:1"></div>
       <input id="search" type="text" placeholder="Search..." oninput="onSearch()">
-      <span id="count"></span>
       <div class="hdr-sep"></div>
       <select id="sort-by" onchange="sortBy=this.value;onSortChange()" title="Sort by">
         <option value="path">Path</option>
@@ -395,6 +440,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
         <option value="date">Added</option>
       </select>
       <button id="sort-dir-btn" class="hdr-btn" onclick="toggleSortDir()" title="Sort direction">↑</button>
+      <div style="flex:1"></div>
       <div class="hdr-sep"></div>
       <div class="sp-btns">
         <button class="sp-btn" id="sp-thumb-sm" onclick="setThumbSize('sm')">S</button>
@@ -404,6 +450,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <div class="hdr-sep"></div>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
+      <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
     <div id="content">
       <div id="loading">Loading...</div>
@@ -411,6 +458,51 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   </div>
 </div>
 
+<!-- Settings Overlay -->
+<div id="settings-overlay" style="display:none" onclick="onSettingsOverlayClick(event)">
+  <div id="settings-modal">
+    <div id="settings-title">⚙ Settings</div>
+    <div class="settings-row">
+      <div class="settings-label">LoRA Folder Path</div>
+      <input id="settings-lora-dir" class="settings-input" type="text"
+        placeholder="e.g. D:/models/Lora  (leave blank to use WebUI default)">
+      <div class="settings-hint">Leave blank to use the WebUI default path. Reload required after change.</div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">civitai API Key</div>
+      <input id="settings-civitai-key" class="settings-input" type="password"
+        placeholder="e.g. xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        autocomplete="off">
+      <div class="settings-hint">civitai → Account Settings → API Keys. Basic fetch works without a key.</div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">Sidebar</div>
+      <div class="settings-toggle-row">
+        <span class="settings-toggle-label">Show Favorites</span>
+        <label class="toggle-switch"><input type="checkbox" id="settings-show-favs"><span class="toggle-track"></span></label>
+      </div>
+      <div class="settings-toggle-row">
+        <span class="settings-toggle-label">Show Recently Used</span>
+        <label class="toggle-switch"><input type="checkbox" id="settings-show-recent"><span class="toggle-track"></span></label>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">civitai Metadata</div>
+      <button class="modal-action-btn fetch-btn" id="bulk-fetch-start-btn" style="width:100%;justify-content:center"
+        onclick="saveSettingsOnly();startBulkFetch()">☁ Fetch All</button>
+    </div>
+    <div id="bulk-fetch-progress">
+      <div id="bulk-fetch-bar-wrap"><div id="bulk-fetch-bar"></div></div>
+      <div id="bulk-fetch-status"></div>
+      <div id="bulk-fetch-result"></div>
+      <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true" style="align-self:flex-end">■ Stop</button>
+    </div>
+    <div id="settings-footer">
+      <button class="modal-action-btn" onclick="closeSettings()">Close</button>
+      <button class="modal-action-btn civitai-btn" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal -->
 <div id="modal-overlay" style="display:none" onclick="onOverlayClick(event)">
@@ -419,7 +511,8 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
     <div id="modal-head">
       <div id="modal-model-name"></div>
       <div id="modal-actions">
-        <button class="modal-action-btn civitai-btn" id="btn-civitai" onclick="openCivitai()" style="display:none">🌐 Civitai</button>
+        <button class="modal-action-btn civitai-btn" id="btn-civitai" onclick="openCivitai()" style="display:none">🌐 civitai</button>
+        <button class="modal-action-btn fetch-btn" id="btn-fetch-civitai" onclick="fetchCivitai()">🔄 Fetch</button>
         <button class="modal-action-btn delete-btn" onclick="deleteLora()">🗑 Delete</button>
       </div>
     </div>
@@ -588,13 +681,30 @@ function buildSections() {
 }
 
 /* ── サイドバー構築 ── */
+function rebuildSidebar() {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = '';
+  buildSidebar();
+  applyFilter();
+}
 function buildSidebar() {
   const list = document.getElementById('cat-list');
+  const showFavs = getSetting('show_favs', '1') === '1';
+  const showRecent = getSetting('show_recent', '1') === '1';
 
-  const favBtn = makeFlatBtn('__fav__', '⭐ Favorites', getFavs().length);
-  favBtn.id = 'fav-sidebar-btn';
-  list.appendChild(favBtn);
-  list.appendChild(Object.assign(document.createElement('div'), { className: 'sidebar-divider' }));
+  if (showRecent) {
+    const recentBtn = makeFlatBtn('__recent__', '🕐 Recently Used', getRecent().length);
+    recentBtn.id = 'recent-sidebar-btn';
+    list.appendChild(recentBtn);
+  }
+  if (showFavs) {
+    const favBtn = makeFlatBtn('__fav__', '⭐ Favorites', getFavs().length);
+    favBtn.id = 'fav-sidebar-btn';
+    list.appendChild(favBtn);
+  }
+  if (showRecent || showFavs) {
+    list.appendChild(Object.assign(document.createElement('div'), { className: 'sidebar-divider' }));
+  }
 
   const allBtn = document.createElement('button');
   allBtn.className = 'cat-btn';
@@ -739,8 +849,8 @@ async function createFolder(path) {
 async function confirmDeleteFolder(folderPath) {
   const counts = {};
   allLoras.forEach(l => { if (l.category) counts[l.category] = (counts[l.category] || 0) + 1; });
-  if (counts[folderPath] > 0) { showToast('フォルダにLORAが残っています'); return; }
-  if (!confirm('フォルダ "' + folderPath + '" を削除しますか？')) return;
+  if (counts[folderPath] > 0) { showToast('Folder is not empty'); return; }
+  if (!confirm('Delete folder "' + folderPath + '"?')) return;
   try {
     const res = await fetch('/lora_browser/delete_folder', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -858,7 +968,7 @@ function setCat(cat, el) {
   if (ic) ic.remove();
   if (el) {
     el.classList.add('active');
-    if (activeCat && activeCat !== '__fav__') addFolderActions(el, activeCat);
+    if (activeCat && activeCat !== '__fav__' && activeCat !== '__recent__') addFolderActions(el, activeCat);
   }
   applyFilter();
   document.getElementById('content').scrollTo({ top: 0, behavior: 'smooth' });
@@ -870,19 +980,21 @@ function onSearch() { applyFilter(); }
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase();
   const favs = getFavs();
+  const recent = getRecent();
   let total = 0;
   document.querySelectorAll('.card').forEach(card => {
     const lora = JSON.parse(card.dataset.lora);
     const cat = lora.category || '';
-    const catMatch = activeCat === null || activeCat === '__fav__' ||
+    const catMatch = activeCat === null || activeCat === '__fav__' || activeCat === '__recent__' ||
       cat === activeCat || (activeCat !== '' && cat.startsWith(activeCat + '/'));
     const favMatch = activeCat !== '__fav__' || favs.includes(lora.name);
+    const recentMatch = activeCat !== '__recent__' || recent.includes(lora.name);
     const textMatch = !q
       || lora.name.toLowerCase().includes(q)
       || lora.model_name.toLowerCase().includes(q)
       || (lora.activation_text || '').toLowerCase().includes(q)
       || (lora.tags || []).some(t => t.toLowerCase().includes(q));
-    const show = catMatch && favMatch && textMatch;
+    const show = catMatch && favMatch && recentMatch && textMatch;
     card.style.display = show ? '' : 'none';
     if (show) total++;
   });
@@ -890,8 +1002,10 @@ function applyFilter() {
 }
 
 function updateCount(n) {
+  const el = document.getElementById('count');
+  if (!el) return;
   const shown = n !== undefined ? n : allLoras.length;
-  document.getElementById('count').textContent = shown + ' / ' + allLoras.length;
+  el.textContent = shown + ' / ' + allLoras.length;
 }
 
 /* ── カード生成 ── */
@@ -1038,7 +1152,7 @@ function openModal(lora) {
     (lora.file_path ?
       `<div class="info-label" style="margin-bottom:4px">Path</div>` +
       `<div style="display:flex;align-items:flex-start;gap:6px">` +
-      `<div style="flex:1;font-size:13px;color:var(--txt3);word-break:break-all;line-height:1.4">${esc(lora.file_path)}</div>` +
+      `<div style="flex:1;font-size:14px;color:var(--txt3);word-break:break-all;line-height:1.4">${esc(lora.file_path)}</div>` +
       `<button class="icon-action-btn" onclick="openFolderModal()" title="Open folder">${SVG_FOLDER}</button></div>` : '') +
     `</div>` +
     buildSampleImages(lora.sample_images) +
@@ -1156,6 +1270,7 @@ function sendTo() {
     const text = '<lora:' + currentLora.name + ':' + currentWeight + '>';
     navigator.clipboard.writeText(text).catch(() => {});
     sentLoraText = insertWordToPrompt(text, false);
+    addRecent(currentLora.name);
     if (btn) { btn.classList.add('sent'); btn.innerHTML = UNDO_ICON; btn.title = 'Undo'; }
     showToast('Sent: ' + text);
   }
@@ -1173,7 +1288,7 @@ function showTrainedWords(words) {
     words.map(tw =>
       `<div class="trained-word-item" data-word="${esc(tw)}" onclick="sendTrainedWord(this)">` +
       `<span class="trained-word-text">${esc(tw)}</span>` +
-      `<span class="trained-word-send"></span>` +
+      `<span class="trained-word-send">+</span>` +
       `</div>`
     ).join('') +
     `</div>`;
@@ -1184,7 +1299,7 @@ function buildEditWordItem(w) {
   div.className = 'trained-word-item';
   div.style.cursor = 'default';
   div.innerHTML =
-    `<span class="trained-word-text" style="cursor:text;flex:1" title="クリックして編集" onclick="inlineEditWord(this)">${esc(w)}</span>` +
+    `<span class="trained-word-text" style="cursor:text;flex:1" title="Click to edit" onclick="inlineEditWord(this)">${esc(w)}</span>` +
     `<button class="tw-del-btn" onclick="this.closest('.trained-word-item').remove()" title="Remove" style="font-size:16px">×</button>`;
   return div;
 }
@@ -1204,7 +1319,7 @@ function inlineEditWord(span) {
     const s = document.createElement('span');
     s.className = 'trained-word-text';
     s.style.cssText = 'cursor:text;flex:1';
-    s.title = 'クリックして編集';
+    s.title = 'Click to edit';
     s.textContent = inp.value.trim() || val;
     s.onclick = function() { inlineEditWord(this); };
     inp.replaceWith(s);
@@ -1279,6 +1394,7 @@ async function saveWords() {
     });
     if (!res.ok) throw new Error('Save failed');
     currentLora.trained_words = words;
+    allLoras.forEach(l => { if (l.name === currentLora.name) l.trained_words = words; });
     document.querySelectorAll('.card').forEach(card => {
       const lora = JSON.parse(card.dataset.lora);
       if (lora.name === currentLora.name) {
@@ -1305,13 +1421,13 @@ function sendTrainedWord(el) {
     removeWordFromPrompt(word, activeWords.get(word));
     activeWords.delete(word);
     el.classList.remove('tw-active');
-    if (sendEl) sendEl.innerHTML = '';
+    if (sendEl) sendEl.textContent = '+';
     showToast('Removed');
   } else {
     const inserted = insertWordToPrompt(word);
     activeWords.set(word, inserted);
     el.classList.add('tw-active');
-    if (sendEl) sendEl.innerHTML = SVG_SENT;
+    if (sendEl) sendEl.textContent = '−';
     showToast('Added: ' + (word.length > 50 ? word.slice(0, 50) + '…' : word));
   }
 }
@@ -1432,6 +1548,138 @@ function openCivitai() {
     (versionId ? '?modelVersionId=' + versionId : ''), '_blank');
 }
 
+async function fetchCivitai() {
+  if (!currentLora) return;
+  const btn = document.getElementById('btn-fetch-civitai');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  try {
+    const res = await fetch('/lora_browser/fetch_civitai', {
+      method: 'POST',
+      headers: getCivitaiHeaders(),
+      body: JSON.stringify({name: currentLora.name, force: true, dl_preview: true})
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast('Error: ' + (data.error || 'Unknown'));
+      return;
+    }
+    showToast('Fetched: ' + (data.model_name || currentLora.name));
+    await loadLoras();
+    const updated = allLoras.find(l => l.name === currentLora.name);
+    if (updated) openModal(updated);
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '⏳ Fetching...') btn.textContent = '🔄 Fetch';
+  }
+}
+
+let bulkFetchRunning = false;
+let bulkFetchAbort = false;
+
+async function startBulkFetch() {
+  if (bulkFetchRunning) return;
+  bulkFetchRunning = true;
+  bulkFetchAbort = false;
+  const progress = document.getElementById('bulk-fetch-progress');
+  const startBtn = document.getElementById('bulk-fetch-start-btn');
+  progress.style.display = 'flex';
+  if (startBtn) startBtn.disabled = true;
+  document.getElementById('bulk-fetch-stop-btn').style.display = '';
+  document.getElementById('bulk-fetch-result').textContent = '';
+  document.getElementById('bulk-fetch-bar').style.width = '0';
+  try {
+    document.getElementById('bulk-fetch-status').textContent = 'Loading LoRA list...';
+    const res = await fetch('/lora_browser/civitai_missing');
+    const data = await res.json();
+    const missing = (data.loras || []).filter(l => !l.has_meta);
+    const total = missing.length;
+    if (total === 0) {
+      document.getElementById('bulk-fetch-status').textContent = 'All LoRAs already have metadata';
+      document.getElementById('bulk-fetch-result').textContent = 'Nothing to fetch';
+      return;
+    }
+    let done = 0, found = 0, notFound = 0;
+    for (const lora of missing) {
+      if (bulkFetchAbort) break;
+      document.getElementById('bulk-fetch-status').textContent = lora.name;
+      try {
+        const r = await fetch('/lora_browser/fetch_civitai', {
+          method: 'POST',
+          headers: getCivitaiHeaders(),
+          body: JSON.stringify({name: lora.name, force: false, dl_preview: true})
+        });
+        const d = await r.json();
+        if (d.ok && !d.skipped) found++;
+        else if (!d.ok) notFound++;
+      } catch(e) { notFound++; }
+      done++;
+      document.getElementById('bulk-fetch-bar').style.width = (done / total * 100) + '%';
+      document.getElementById('bulk-fetch-result').textContent =
+        done + ' / ' + total + ' processed (fetched: ' + found + '  not found: ' + notFound + ')';
+    }
+    document.getElementById('bulk-fetch-status').textContent = bulkFetchAbort ? 'Stopped' : 'Done';
+    await loadLoras();
+  } catch(e) {
+    document.getElementById('bulk-fetch-status').textContent = 'Error: ' + e.message;
+  } finally {
+    bulkFetchRunning = false;
+    document.getElementById('bulk-fetch-stop-btn').style.display = 'none';
+    if (startBtn) startBtn.disabled = false;
+  }
+}
+
+async function openSettings() {
+  document.getElementById('settings-civitai-key').value = getSetting('civitai_api_key', '');
+  document.getElementById('settings-show-favs').checked = getSetting('show_favs', '1') === '1';
+  document.getElementById('settings-show-recent').checked = getSetting('show_recent', '1') === '1';
+  document.getElementById('bulk-fetch-progress').style.display = 'none';
+  try {
+    const res = await fetch('/lora_browser/config');
+    const cfg = await res.json();
+    document.getElementById('settings-lora-dir').value = cfg.lora_dir || '';
+  } catch(e) {}
+  document.getElementById('settings-overlay').style.display = 'flex';
+}
+function closeSettings() {
+  if (bulkFetchRunning) return;
+  document.getElementById('settings-overlay').style.display = 'none';
+}
+function _saveSettingsLocal() {
+  setSetting('civitai_api_key', document.getElementById('settings-civitai-key').value.trim());
+  setSetting('show_favs', document.getElementById('settings-show-favs').checked ? '1' : '0');
+  setSetting('show_recent', document.getElementById('settings-show-recent').checked ? '1' : '0');
+}
+async function saveSettings() {
+  _saveSettingsLocal();
+  const loraDir = document.getElementById('settings-lora-dir').value.trim();
+  await fetch('/lora_browser/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lora_dir: loraDir})
+  });
+  rebuildSidebar();
+  closeSettings();
+  showToast('Settings saved');
+}
+async function saveSettingsOnly() {
+  _saveSettingsLocal();
+  const loraDir = document.getElementById('settings-lora-dir').value.trim();
+  await fetch('/lora_browser/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lora_dir: loraDir})
+  });
+}
+function onSettingsOverlayClick(e) {
+  if (e.target === document.getElementById('settings-overlay')) closeSettings();
+}
+function getCivitaiHeaders() {
+  const key = getSetting('civitai_api_key', '');
+  return key ? {'Content-Type': 'application/json', 'X-Civitai-Api-Key': key}
+             : {'Content-Type': 'application/json'};
+}
+
 function getHostWindow() {
   if (window.opener && !window.opener.closed) return window.opener;
   if (window.parent && window.parent !== window) return window.parent;
@@ -1457,6 +1705,24 @@ function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ── Recently Used (localStorage) ── */
+const RECENT_MAX = 20;
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem('lora_recent') || '[]'); } catch { return []; }
+}
+function addRecent(name) {
+  let recent = getRecent().filter(n => n !== name);
+  recent.unshift(name);
+  if (recent.length > RECENT_MAX) recent = recent.slice(0, RECENT_MAX);
+  localStorage.setItem('lora_recent', JSON.stringify(recent));
+  updateRecentSidebarCount();
+}
+function updateRecentSidebarCount() {
+  const btn = document.getElementById('recent-sidebar-btn');
+  if (btn) btn.querySelector('.cat-badge').textContent = getRecent().length;
+  if (activeCat === '__recent__') applyFilter();
 }
 
 /* ── お気に入り (localStorage) ── */
@@ -1623,11 +1889,11 @@ function buildSampleImages(images) {
       (img.prompt ? `<div class="si-prompt-row" onclick="toggleSampleSend(this,${idx},'pos')">` +
         `<div class="si-prompt-label">Prompt</div>` +
         `<div class="si-prompt-text">${esc(img.prompt)}</div>` +
-        `<div class="trained-word-send">${SVG_ADD}</div></div>` : '') +
+        `<div class="trained-word-send">+</div></div>` : '') +
       (img.neg ? `<div class="si-prompt-row" onclick="toggleSampleSend(this,${idx},'neg')">` +
         `<div class="si-prompt-label">Neg</div>` +
         `<div class="si-prompt-text">${esc(img.neg)}</div>` +
-        `<div class="trained-word-send">${SVG_ADD}</div></div>` : '') +
+        `<div class="trained-word-send">+</div></div>` : '') +
       `</div>`;
   }).join('');
   return `<div class="info-section">` +
@@ -1650,12 +1916,12 @@ function toggleSampleSend(el, idx, type) {
     else removeFromNegativePrompt(text, inserted);
     activeSampleSends.delete(key);
     el.classList.remove('tw-active');
-    if (sendEl) sendEl.innerHTML = SVG_INJECT;
+    if (sendEl) sendEl.textContent = '+';
   } else {
     const inserted = type === 'pos' ? insertWordToPrompt(text) : insertToNegativePrompt(text);
     activeSampleSends.set(key, inserted);
     el.classList.add('tw-active');
-    if (sendEl) sendEl.innerHTML = SVG_SENT;
+    if (sendEl) sendEl.textContent = '−';
   }
 }
 function insertToNegativePrompt(text) {
@@ -1726,6 +1992,11 @@ loadLoras().then(initSettings);
 
 
 def _get_lora_dir():
+    cfg = _load_config()
+    if cfg.get("lora_dir"):
+        p = Path(cfg["lora_dir"])
+        if p.exists():
+            return p
     try:
         import modules.shared as shared
         if hasattr(shared, 'opts') and getattr(shared.opts, 'lora_dir', None):
@@ -1749,7 +2020,7 @@ def _scan_loras():
         category = rel.parent.as_posix() if rel.parent.as_posix() != '.' else ''
 
         preview_rel = None
-        for pext in [".preview.png", ".preview.jpg", ".preview.jpeg"]:
+        for pext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]:
             ppath = path.parent / (name + pext)
             if ppath.exists():
                 preview_rel = (path.parent / (name + pext)).relative_to(lora_dir).as_posix()
@@ -1784,12 +2055,41 @@ def _scan_loras():
         trained_words = []
         sample_images = []
         civitai_html = ""
+        import re as _re
+
+        def _sanitize_html(raw):
+            s = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw, flags=_re.DOTALL|_re.IGNORECASE)
+            s = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', s, flags=_re.IGNORECASE)
+            s = _re.sub(r"\son\w+\s*=\s*'[^']*'", '', s, flags=_re.IGNORECASE)
+            return s.strip()
+
+        def _parse_images(images_list):
+            result = []
+            for img in (images_list or []):
+                url = img.get("url", "")
+                if not url or img.get("type", "image") != "image" or len(result) >= 6:
+                    continue
+                meta = img.get("meta") or {}
+                result.append({
+                    "url": url,
+                    "prompt": (meta.get("prompt") or "")[:2000],
+                    "neg": (meta.get("negativePrompt") or "")[:2000],
+                    "steps": meta.get("steps", ""),
+                    "cfg": meta.get("cfgScale", ""),
+                    "sampler": (meta.get("sampler") or "")[:40],
+                    "model": (meta.get("Model") or meta.get("model") or "")[:60],
+                    "seed": meta.get("seed", ""),
+                    "size": (meta.get("Size") or "")[:20],
+                })
+            return result
+
         meta_path = path.parent / (name + ".metadata.json")
+        info_path = path.parent / (name + ".civitai.info")
         if meta_path.exists():
             try:
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
-                model_name = custom_model_name or mdata.get("model_name", name)
-                tags = custom_tags if custom_tags is not None else mdata.get("tags", [])
+                model_name = mdata.get("model_name", name)
+                tags = mdata.get("tags", [])
                 base_model = mdata.get("base_model", "")
                 if not preview_rel:
                     purl = mdata.get("preview_url", "")
@@ -1804,33 +2104,34 @@ def _scan_loras():
                 civitai_model_id = int(civitai.get("modelId") or 0)
                 civitai_version_id = int(civitai.get("id") or 0)
                 trained_words = civitai.get("trainedWords") or []
-                if custom_trigger_words is not None:
-                    trained_words = custom_trigger_words
-                import re as _re
                 raw_desc = mdata.get("modelDescription") or civitai.get("description") or ""
-                # Strip only dangerous tags; keep safe HTML (img, p, h*, strong, etc.)
-                safe = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw_desc, flags=_re.DOTALL|_re.IGNORECASE)
-                safe = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', safe, flags=_re.IGNORECASE)
-                safe = _re.sub(r"\son\w+\s*=\s*'[^']*'", '', safe, flags=_re.IGNORECASE)
-                civitai_html = safe.strip()
-                for img in (civitai.get("images") or []):
-                    url = img.get("url", "")
-                    if not url or img.get("type", "image") != "image" or len(sample_images) >= 6:
-                        continue
-                    meta = img.get("meta") or {}
-                    sample_images.append({
-                        "url": url,
-                        "prompt": (meta.get("prompt") or "")[:2000],
-                        "neg": (meta.get("negativePrompt") or "")[:2000],
-                        "steps": meta.get("steps", ""),
-                        "cfg": meta.get("cfgScale", ""),
-                        "sampler": (meta.get("sampler") or "")[:40],
-                        "model": (meta.get("Model") or meta.get("model") or "")[:60],
-                        "seed": meta.get("seed", ""),
-                        "size": (meta.get("Size") or "")[:20],
-                    })
+                civitai_html = _sanitize_html(raw_desc)
+                sample_images = _parse_images(civitai.get("images"))
             except Exception:
                 pass
+        elif info_path.exists():
+            try:
+                idata = json.loads(info_path.read_text(encoding="utf-8"))
+                minfo = idata.get("model") or {}
+                model_name = minfo.get("name") or name
+                tags = minfo.get("tags") or []
+                base_model = idata.get("baseModel") or ""
+                civitai_model_id = int(idata.get("modelId") or 0)
+                civitai_version_id = int(idata.get("id") or 0)
+                trained_words = idata.get("trainedWords") or []
+                raw_desc = minfo.get("description") or idata.get("description") or ""
+                civitai_html = _sanitize_html(raw_desc)
+                sample_images = _parse_images(idata.get("images"))
+            except Exception:
+                pass
+
+        # apply custom overrides regardless of whether metadata files exist
+        if custom_model_name:
+            model_name = custom_model_name
+        if custom_tags is not None:
+            tags = custom_tags
+        if custom_trigger_words is not None:
+            trained_words = custom_trigger_words
 
         loras.append({
             "name": name,
@@ -2119,7 +2420,182 @@ def _register_api(_, app: FastAPI):
             buf.seek(0)
             return FastAPIResponse(content=buf.getvalue(), media_type="image/jpeg", headers=no_cache)
         except Exception:
-            return FileResponse(str(safe), headers=no_cache)
+            import mimetypes
+            mt = mimetypes.guess_type(str(safe))[0] or "image/jpeg"
+            with open(str(safe), "rb") as f:
+                raw = f.read()
+            if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+                mt = "image/webp"
+            from fastapi.responses import Response as FastAPIResponse
+            return FastAPIResponse(content=raw, media_type=mt, headers=no_cache)
+
+    @app.get("/lora_browser/civitai_missing")
+    def civitai_missing():
+        lora_dir = _get_lora_dir()
+        result = []
+        for sf in sorted(lora_dir.rglob("*.safetensors")):
+            has_meta = (sf.parent / (sf.stem + ".metadata.json")).exists()
+            result.append({"name": sf.stem, "has_meta": has_meta})
+        return JSONResponse(content={"loras": result})
+
+    @app.post("/lora_browser/fetch_civitai")
+    async def fetch_civitai_endpoint(request: Request):
+        import hashlib
+        import urllib.request as _urlreq
+        import urllib.error as _urlerr
+        data = await request.json()
+        name = (data.get("name") or "").strip()
+        force = bool(data.get("force", False))
+        dl_preview = bool(data.get("dl_preview", True))
+
+        if not name or any(c in name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid name"})
+
+        lora_dir = _get_lora_dir()
+        sf_path = None
+        for sf in lora_dir.rglob(name + ".safetensors"):
+            sf_path = sf
+            break
+        if not sf_path:
+            return JSONResponse(status_code=404, content={"error": "LORA not found"})
+
+        meta_path = sf_path.parent / (name + ".metadata.json")
+        info_path = sf_path.parent / (name + ".civitai.info")
+        if meta_path.exists() and not force:
+            return JSONResponse(content={"ok": True, "skipped": True})
+
+        # Try to get SHA256 from .civitai.info first
+        sha256 = None
+        if info_path.exists():
+            try:
+                idata = json.loads(info_path.read_text(encoding="utf-8"))
+                for f in (idata.get("files") or []):
+                    h = (f.get("hashes") or {}).get("SHA256", "")
+                    if h:
+                        sha256 = h.lower()
+                        break
+            except Exception:
+                pass
+
+        if not sha256:
+            try:
+                h = hashlib.sha256()
+                with open(sf_path, "rb") as f:
+                    for chunk in iter(lambda: f.read(65536), b""):
+                        h.update(chunk)
+                sha256 = h.hexdigest()
+            except Exception as e:
+                return JSONResponse(status_code=500, content={"error": f"Hash error: {e}"})
+
+        api_key = request.headers.get("X-Civitai-Api-Key", "").strip()
+        def _civitai_headers():
+            h = {"User-Agent": "sd-webui-lora-browser/1.0"}
+            if api_key:
+                h["Authorization"] = f"Bearer {api_key}"
+            return h
+
+        try:
+            api_url = f"https://civitai.com/api/v1/model-versions/by-hash/{sha256}"
+            req = _urlreq.Request(api_url, headers=_civitai_headers())
+            with _urlreq.urlopen(req, timeout=20) as resp:
+                ver_data = json.loads(resp.read().decode("utf-8"))
+        except _urlerr.HTTPError as e:
+            if e.code == 404:
+                return JSONResponse(status_code=404, content={"error": "Not found on CivitAI"})
+            return JSONResponse(status_code=502, content={"error": f"CivitAI API error: {e.code}"})
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": f"Network error: {e}"})
+
+        model_info = ver_data.get("model") or {}
+        images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
+
+        # model-versions/by-hash often omits model.description and tags; fetch separately
+        model_description = model_info.get("description") or ""
+        model_tags = model_info.get("tags") or []
+        if not model_description or not model_tags:
+            model_id = ver_data.get("modelId")
+            if model_id:
+                try:
+                    mreq = _urlreq.Request(
+                        f"https://civitai.com/api/v1/models/{model_id}",
+                        headers=_civitai_headers()
+                    )
+                    with _urlreq.urlopen(mreq, timeout=20) as resp:
+                        mdata = json.loads(resp.read().decode("utf-8"))
+                    if not model_description:
+                        model_description = mdata.get("description") or ""
+                    if not model_tags:
+                        model_tags = mdata.get("tags") or []
+                except Exception:
+                    pass
+
+        metadata = {
+            "model_name": model_info.get("name") or name,
+            "tags": model_tags,
+            "base_model": ver_data.get("baseModel") or "",
+            "preview_url": "",
+            "civitai": {
+                "modelId": ver_data.get("modelId"),
+                "id": ver_data.get("id"),
+                "trainedWords": ver_data.get("trainedWords") or [],
+                "description": ver_data.get("description") or "",
+                "images": images[:10],
+            },
+            "modelDescription": model_description,
+        }
+
+        if dl_preview and images:
+            has_preview = any(
+                (sf_path.parent / (name + ext)).exists()
+                for ext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]
+            )
+            if not has_preview:
+                try:
+                    img_url = images[0].get("url", "")
+                    if img_url:
+                        req = _urlreq.Request(img_url, headers={"User-Agent": "sd-webui-lora-browser/1.0"})
+                        with _urlreq.urlopen(req, timeout=30) as resp:
+                            img_data = resp.read()
+                            ct = resp.headers.get("Content-Type", "")
+                        if "webp" in ct:
+                            img_ext = ".preview.webp"
+                        elif "png" in ct:
+                            img_ext = ".preview.png"
+                        else:
+                            img_ext = ".preview.jpg"
+                        (sf_path.parent / (name + img_ext)).write_bytes(img_data)
+                except Exception:
+                    pass
+
+        try:
+            meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Save error: {e}"})
+
+        # update .json with activation text for civitai helper compatibility
+        trained_words = ver_data.get("trainedWords") or []
+        if trained_words:
+            json_path = sf_path.parent / (name + ".json")
+            try:
+                existing = {}
+                if json_path.exists():
+                    existing = json.loads(json_path.read_text(encoding="utf-8"))
+                existing["activation text"] = ", ".join(trained_words)
+                json_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+        return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
+
+    @app.get("/lora_browser/config")
+    def get_config():
+        return JSONResponse(content=_load_config())
+
+    @app.post("/lora_browser/config")
+    async def save_config_endpoint(request: Request):
+        data = await request.json()
+        _save_config(data)
+        return JSONResponse(content={"ok": True})
 
 
 def _create_tab():
