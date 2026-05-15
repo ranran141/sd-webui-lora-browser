@@ -29,13 +29,13 @@ Stable Diffusion WebUI / Forge / Reforge 向けの LORA ブラウザ拡張機能
 
 ## 更新履歴
 
-### v1.2
+### v1.2 (2026-05-16)
 - Reforge / Forge NEO 対応
 
-### v1.1.0
+### v1.1.0 (2026-05-15)
 - civitaiからメタデータ取得に対応
 - 最近使ったLORAを表示
 - LORAフォルダ指定を追加
 
-### v1.0.0
+### v1.0.0 (2026-05-14)
 - 初回リリース
