@@ -3223,15 +3223,15 @@ def _register_api(_, app: FastAPI):
 
 def _create_tab():
     import gradio as gr
+    _gr_major = int(getattr(gr, '__version__', '4').split('.')[0])
     css = "#lora-open-btn { min-height: 44px !important; font-size: 14px !important; font-weight: 600 !important; }"
+    _open_js = "() => window.open('/lora_browser/ui', 'lora_browser', 'width=1280,height=860,resizable=yes,scrollbars=yes')"
     with gr.Blocks(analytics_enabled=False, css=css) as ui:
         btn = gr.Button('Open in New Window', variant='primary', elem_id='lora-open-btn')
-        btn.click(
-            fn=None,
-            inputs=[],
-            outputs=[],
-            js="() => window.open('/lora_browser/ui', 'lora_browser', 'width=1280,height=860,resizable=yes,scrollbars=yes')"
-        )
+        if _gr_major >= 4:
+            btn.click(fn=None, inputs=[], outputs=[], js=_open_js)
+        else:
+            btn.click(fn=lambda: None, inputs=[], outputs=[], _js=_open_js)
         gr.HTML('''
             <iframe src="/lora_browser/ui"
                     style="width:100%;height:calc(100vh - 160px);border:none;display:block;margin-top:8px;">
