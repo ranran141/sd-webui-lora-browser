@@ -253,20 +253,12 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .modal-action-btn.fetch-btn { border-color: #166534; color: #86efac; }
 .modal-action-btn.fetch-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
 .modal-action-btn.fetch-btn:disabled { opacity: 0.5; cursor: default; }
-#bulk-fetch-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
-  align-items: center; justify-content: center; z-index: 9000; }
-#bulk-fetch-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
-  width: 440px; max-width: 92vw; padding: 24px; display: flex; flex-direction: column; gap: 16px;
-  box-shadow: 0 12px 48px var(--shadow); }
-#bulk-fetch-title { font-size: 16px; font-weight: 700; color: var(--acc); }
+#bulk-fetch-progress { display: none; flex-direction: column; gap: 8px; }
 #bulk-fetch-bar-wrap { background: var(--bg3); border-radius: 6px; height: 8px; overflow: hidden; }
 #bulk-fetch-bar { height: 100%; width: 0; background: #22c55e; border-radius: 6px; transition: width 0.2s; }
 #bulk-fetch-status { font-size: 13px; color: var(--txt3); min-height: 18px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 #bulk-fetch-result { font-size: 13px; color: var(--txt2); min-height: 18px; }
-#bulk-fetch-footer { display: flex; gap: 8px; justify-content: flex-end; }
-.hdr-btn.fetch-all-btn { border-color: #166534; color: #86efac; }
-.hdr-btn.fetch-all-btn:hover { background: rgba(22,101,52,0.2); border-color: #22c55e; }
 #settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
   align-items: center; justify-content: center; z-index: 9000; }
 #settings-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
@@ -415,9 +407,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   </div>
   <div id="main">
     <div id="header">
-      <div style="flex:1"></div>
       <input id="search" type="text" placeholder="Search..." oninput="onSearch()">
-      <span id="count"></span>
       <div class="hdr-sep"></div>
       <select id="sort-by" onchange="sortBy=this.value;onSortChange()" title="Sort by">
         <option value="path">Path</option>
@@ -425,6 +415,7 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
         <option value="date">Added</option>
       </select>
       <button id="sort-dir-btn" class="hdr-btn" onclick="toggleSortDir()" title="Sort direction">↑</button>
+      <div style="flex:1"></div>
       <div class="hdr-sep"></div>
       <div class="sp-btns">
         <button class="sp-btn" id="sp-thumb-sm" onclick="setThumbSize('sm')">S</button>
@@ -434,25 +425,10 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
       <div class="hdr-sep"></div>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
-      <button id="bulk-fetch-btn" class="hdr-btn fetch-all-btn" onclick="startBulkFetch()" title="CivitAI一括取得">☁</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="設定">⚙</button>
     </div>
     <div id="content">
       <div id="loading">Loading...</div>
-    </div>
-  </div>
-</div>
-
-<!-- CivitAI Bulk Fetch Overlay -->
-<div id="bulk-fetch-overlay" style="display:none">
-  <div id="bulk-fetch-modal">
-    <div id="bulk-fetch-title">☁ CivitAI 一括取得</div>
-    <div id="bulk-fetch-bar-wrap"><div id="bulk-fetch-bar"></div></div>
-    <div id="bulk-fetch-status">準備中...</div>
-    <div id="bulk-fetch-result"></div>
-    <div id="bulk-fetch-footer">
-      <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true">■ 停止</button>
-      <button class="modal-action-btn" id="bulk-fetch-close-btn" onclick="closeBulkFetch()" style="display:none">閉じる</button>
     </div>
   </div>
 </div>
@@ -468,8 +444,19 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
         autocomplete="off">
       <div class="settings-hint">CivitAI → アカウント設定 → API Keys で発行。未入力でも基本的な取得は可能。</div>
     </div>
+    <div class="settings-row">
+      <div class="settings-label">CivitAI メタデータ</div>
+      <button class="modal-action-btn fetch-btn" id="bulk-fetch-start-btn" style="width:100%;justify-content:center"
+        onclick="saveSettingsOnly();startBulkFetch()">☁ 一括取得</button>
+    </div>
+    <div id="bulk-fetch-progress">
+      <div id="bulk-fetch-bar-wrap"><div id="bulk-fetch-bar"></div></div>
+      <div id="bulk-fetch-status"></div>
+      <div id="bulk-fetch-result"></div>
+      <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true" style="align-self:flex-end">■ 停止</button>
+    </div>
     <div id="settings-footer">
-      <button class="modal-action-btn" onclick="closeSettings()">キャンセル</button>
+      <button class="modal-action-btn" onclick="closeSettings()">閉じる</button>
       <button class="modal-action-btn civitai-btn" onclick="saveSettings()">保存</button>
     </div>
   </div>
@@ -954,8 +941,10 @@ function applyFilter() {
 }
 
 function updateCount(n) {
+  const el = document.getElementById('count');
+  if (!el) return;
   const shown = n !== undefined ? n : allLoras.length;
-  document.getElementById('count').textContent = shown + ' / ' + allLoras.length;
+  el.textContent = shown + ' / ' + allLoras.length;
 }
 
 /* ── カード生成 ── */
@@ -1532,10 +1521,11 @@ async function startBulkFetch() {
   if (bulkFetchRunning) return;
   bulkFetchRunning = true;
   bulkFetchAbort = false;
-  const overlay = document.getElementById('bulk-fetch-overlay');
-  overlay.style.display = 'flex';
+  const progress = document.getElementById('bulk-fetch-progress');
+  const startBtn = document.getElementById('bulk-fetch-start-btn');
+  progress.style.display = 'flex';
+  if (startBtn) startBtn.disabled = true;
   document.getElementById('bulk-fetch-stop-btn').style.display = '';
-  document.getElementById('bulk-fetch-close-btn').style.display = 'none';
   document.getElementById('bulk-fetch-result').textContent = '';
   document.getElementById('bulk-fetch-bar').style.width = '0';
   try {
@@ -1575,20 +1565,17 @@ async function startBulkFetch() {
   } finally {
     bulkFetchRunning = false;
     document.getElementById('bulk-fetch-stop-btn').style.display = 'none';
-    document.getElementById('bulk-fetch-close-btn').style.display = '';
+    if (startBtn) startBtn.disabled = false;
   }
-}
-
-function closeBulkFetch() {
-  if (bulkFetchRunning) return;
-  document.getElementById('bulk-fetch-overlay').style.display = 'none';
 }
 
 function openSettings() {
   document.getElementById('settings-civitai-key').value = getSetting('civitai_api_key', '');
+  document.getElementById('bulk-fetch-progress').style.display = 'none';
   document.getElementById('settings-overlay').style.display = 'flex';
 }
 function closeSettings() {
+  if (bulkFetchRunning) return;
   document.getElementById('settings-overlay').style.display = 'none';
 }
 function saveSettings() {
@@ -1596,6 +1583,10 @@ function saveSettings() {
   setSetting('civitai_api_key', key);
   closeSettings();
   showToast('設定を保存しました');
+}
+function saveSettingsOnly() {
+  const key = document.getElementById('settings-civitai-key').value.trim();
+  setSetting('civitai_api_key', key);
 }
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
