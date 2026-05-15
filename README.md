@@ -2,6 +2,8 @@
 
 Stable Diffusion WebUI / Forge Neo / Reforge 向けの LORA ブラウザ拡張機能です
 
+![screenshot](screenshot.png)
+
 ## 機能
 
 - サムネイル付きでLORAファイルを一覧表示・検索
