@@ -28,7 +28,7 @@ Stable Diffusion WebUI / Forge / Reforge 向けの LORA ブラウザ拡張機能
 
 ## 更新履歴
 
-### v1.2 (2026-05-16)
+### v1.2.0 (2026-05-16)
 - Reforge / Forge NEO 対応
 
 ### v1.1.0 (2026-05-15)
