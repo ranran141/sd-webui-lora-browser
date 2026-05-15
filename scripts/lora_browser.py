@@ -165,6 +165,12 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   box-shadow: 0 8px 24px var(--pri-bg2); border-color: var(--pri); }
 .card.fav-card { border-color: var(--fav); }
 .card.fav-card:hover { border-color: var(--fav2); }
+.card.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.4); }
+body.selecting .card:hover { transform: none; box-shadow: none; border-color: transparent; }
+body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.4); }
+.card-select-badge { position: absolute; inset: 0; display: none;
+  background: rgba(59,130,246,0.3); z-index: 5; pointer-events: none; }
+.card.selected .card-select-badge { display: block; }
 .card-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
 .card-placeholder { width: 100%; height: 100%; display: flex;
   align-items: center; justify-content: center; font-size: 52px; color: var(--bd2); }
@@ -410,6 +416,45 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 .sp-btn.active { border-color: var(--pri); background: var(--pri-bg2); color: var(--acc); }
 
 /* ── トースト ── */
+#sidebar-header { display: flex; align-items: center; justify-content: flex-end;
+  padding: 6px 8px; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
+#folder-mgr-btn { background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--txt4); font-size: 14px; cursor: pointer; padding: 3px 7px;
+  transition: all 0.12s; line-height: 1; }
+#folder-mgr-btn:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
+#folder-mgr-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: none; align-items: center; justify-content: center; z-index: 9500; }
+#folder-mgr-overlay.open { display: flex; }
+#folder-mgr-modal { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px;
+  width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 12px 48px var(--shadow); }
+#folder-mgr-head { padding: 14px 18px 12px; display: flex; align-items: center;
+  justify-content: space-between; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
+#folder-mgr-title { font-size: 15px; font-weight: 700; color: var(--acc); }
+#folder-mgr-close { background: none; border: none; color: var(--txt4); font-size: 18px;
+  cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: all 0.15s; }
+#folder-mgr-close:hover { background: var(--bg4h); color: var(--txt); }
+#folder-mgr-body { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+#folder-mgr-add { padding: 12px 14px; border-top: 1px solid var(--bd); display: flex; gap: 6px; flex-shrink: 0; }
+#folder-mgr-add input { flex: 1; background: var(--bg3); border: 1px solid var(--bd2);
+  border-radius: 6px; color: var(--txt); font-size: 13px; padding: 6px 10px; }
+#folder-mgr-add input:focus { outline: none; border-color: var(--pri); }
+#folder-mgr-add select { background: var(--bg3); border: 1px solid var(--bd2);
+  border-radius: 6px; color: var(--txt); font-size: 13px; padding: 6px 8px; }
+#folder-mgr-add button { padding: 6px 14px; background: var(--pri-bg); border: 1px solid var(--pri);
+  border-radius: 6px; color: var(--acc); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+#folder-mgr-add button:hover { background: var(--pri-bg2); }
+.fmgr-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  border-radius: 6px; transition: background 0.12s; }
+.fmgr-row:hover { background: var(--pri-bg); }
+.fmgr-indent { color: var(--txt4); font-size: 11px; flex-shrink: 0; user-select: none; }
+.fmgr-name { flex: 1; font-size: 13px; color: var(--txt2); cursor: text; }
+.fmgr-name-input { flex: 1; background: var(--bg3); border: 1px solid var(--pri);
+  border-radius: 4px; color: var(--txt); font-size: 13px; padding: 2px 6px; }
+.fmgr-btn { background: none; border: 1px solid transparent; border-radius: 5px;
+  color: var(--txt4); font-size: 13px; cursor: pointer; padding: 2px 6px; transition: all 0.12s; }
+.fmgr-btn:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
+.fmgr-btn.del:hover { border-color: #c55; color: #f66; background: rgba(200,80,80,0.1); }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--pri); color: white; padding: 10px 20px; border-radius: 20px;
   font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 9999;
@@ -428,6 +473,9 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
 <!-- Layout -->
 <div id="layout">
   <div id="sidebar">
+    <div id="sidebar-header">
+      <button id="folder-mgr-btn" onclick="openFolderMgr()" title="Manage folders">📁</button>
+    </div>
     <div id="cat-list"></div>
   </div>
   <div id="main">
@@ -547,6 +595,17 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   </div>
 </div>
 
+<!-- Folder Manager -->
+<div id="folder-mgr-overlay" onclick="onFolderMgrOverlayClick(event)">
+  <div id="folder-mgr-modal">
+    <div id="folder-mgr-head">
+      <div id="folder-mgr-title">📁 Folder Manager</div>
+      <button id="folder-mgr-close" onclick="closeFolderMgr()">✕</button>
+    </div>
+    <div id="folder-mgr-body"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -603,6 +662,7 @@ function setSidebarVisible(visible) {
 
 /* ── データ読み込み ── */
 async function loadLoras() {
+  clearSelection();
   previewVer = Date.now();
   try {
     const res = await fetch('/lora_browser/list', {cache: 'no-store'});
@@ -613,9 +673,11 @@ async function loadLoras() {
     if (loadingEl) loadingEl.remove();
     const content = document.getElementById('content');
     content.innerHTML = '';
+    const expandedPaths = getExpandedPaths();
     buildSections();
     document.getElementById('cat-list').innerHTML = '';
     buildSidebar();
+    restoreExpandedPaths(expandedPaths);
     restoreActiveCat();
     applyFilter();
   } catch(e) {
@@ -681,6 +743,25 @@ function buildSections() {
 }
 
 /* ── サイドバー構築 ── */
+function getExpandedPaths() {
+  return [...document.querySelectorAll('.stree-item.expanded')]
+    .map(item => item.querySelector('.stree-row')?.dataset.cat)
+    .filter(Boolean);
+}
+
+function restoreExpandedPaths(paths) {
+  if (!paths.length) return;
+  paths.forEach(path => {
+    const row = document.querySelector(`.stree-row[data-cat="${CSS.escape(path)}"]`);
+    if (!row) return;
+    const item = row.closest('.stree-item');
+    if (!item) return;
+    item.classList.add('expanded');
+    const indicator = row.querySelector('.stree-toggle');
+    if (indicator) indicator.textContent = '▼';
+  });
+}
+
 function rebuildSidebar() {
   const list = document.getElementById('cat-list');
   list.innerHTML = '';
@@ -714,8 +795,7 @@ function buildSidebar() {
     `<div class="cat-accent"></div>` +
     `<div class="cat-inner">` +
     `<span class="cat-label">All</span>` +
-    `<button class="stree-folder-btn" title="Create root folder" style="font-size:17px;padding:1px 7px" ` +
-    `onclick="event.stopPropagation();showInlineRootCreate()">+</button>` +
+    `<span class="cat-badge">${allLoras.length}</span>` +
     `</div>`;
   allBtn.addEventListener('click', () => setCat('', allBtn));
   allBtn.classList.add('active');
@@ -740,9 +820,10 @@ function buildCatTree() {
     const parts = lora.category.split('/').filter(Boolean);
     let node = root;
     parts.forEach((part, i) => {
-      if (!node.dirs[part]) node.dirs[part] = { dirs: {}, count: 0, path: '' };
+      if (!node.dirs[part]) node.dirs[part] = { dirs: {}, count: 0, directCount: 0, path: '' };
       node = node.dirs[part];
       node.count = (node.count || 0) + 1;
+      if (i === parts.length - 1) node.directCount = (node.directCount || 0) + 1;
     });
   });
   function setPaths(node, prefix) {
@@ -863,6 +944,41 @@ async function confirmDeleteFolder(folderPath) {
     await loadLoras();
   } catch(e) { showToast('Error: ' + e.message); }
 }
+function startFolderRename(row, nameSpan, folderPath, currentName) {
+  if (row.querySelector('.stree-rename-input')) return;
+  nameSpan.style.display = 'none';
+  const inp = document.createElement('input');
+  inp.className = 'stree-rename-input tw-edit-input';
+  inp.value = currentName;
+  inp.style.cssText = 'flex:1;font-size:13px;padding:2px 6px;min-width:0';
+  row.insertBefore(inp, nameSpan.nextSibling);
+  inp.focus();
+  inp.select();
+  const cancel = () => {
+    inp.remove();
+    nameSpan.style.display = '';
+  };
+  const commit = async () => {
+    const newName = inp.value.trim();
+    if (!newName || newName === currentName) { cancel(); return; }
+    try {
+      const res = await fetch('/lora_browser/rename_folder', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old_path: folderPath, new_name: newName})
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast('Error: ' + (data.error || 'Failed')); cancel(); return; }
+      showToast('Renamed');
+      await loadLoras();
+    } catch(e) { showToast('Error: ' + e.message); cancel(); }
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') cancel();
+  });
+  inp.addEventListener('blur', () => setTimeout(cancel, 150));
+}
+
 function addFolderDrop(el, folderPath) {
   el.addEventListener('dragover', e => {
     if (!e.dataTransfer.types.includes('text/lora-name')) return;
@@ -878,7 +994,12 @@ function addFolderDrop(el, folderPath) {
     el.classList.remove('drag-over');
     const name = e.dataTransfer.getData('text/lora-name');
     if (!name) return;
-    await moveLora(name, folderPath);
+    const isMulti = e.dataTransfer.getData('text/lora-multi') === '1';
+    if (isMulti && selectedCards.size > 0) {
+      await moveSelectedLoras(folderPath);
+    } else {
+      await moveLora(name, folderPath);
+    }
   });
 }
 async function moveLora(name, targetFolder) {
@@ -919,9 +1040,15 @@ function renderSidebarNode(node, container, depth) {
     nameSpan.textContent = dirName;
     row.appendChild(nameSpan);
 
+    const badge = document.createElement('span');
+    badge.className = 'cat-badge';
+    badge.style.cssText = 'font-size:11px;margin-right:4px;flex-shrink:0';
+    badge.textContent = child.directCount || 0;
+    row.appendChild(badge);
+
     row.style.cursor = 'pointer';
     row.addEventListener('click', e => {
-      if (e.target.closest('.stree-folder-actions')) return;
+      if (e.target.closest('.stree-rename-input')) return;
       setCat(child.path, row);
       if (hasChildren) {
         const exp = item.classList.toggle('expanded');
@@ -968,10 +1095,47 @@ function setCat(cat, el) {
   if (ic) ic.remove();
   if (el) {
     el.classList.add('active');
-    if (activeCat && activeCat !== '__fav__' && activeCat !== '__recent__') addFolderActions(el, activeCat);
   }
   applyFilter();
   document.getElementById('content').scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── 複数選択 ── */
+const selectedCards = new Set();
+
+function toggleCardSelect(card) {
+  if (selectedCards.has(card)) {
+    selectedCards.delete(card);
+    card.classList.remove('selected');
+  } else {
+    selectedCards.add(card);
+    card.classList.add('selected');
+  }
+  document.body.classList.toggle('selecting', selectedCards.size > 0);
+}
+
+function clearSelection() {
+  selectedCards.forEach(c => c.classList.remove('selected'));
+  selectedCards.clear();
+  document.body.classList.remove('selecting');
+}
+
+async function moveSelectedLoras(targetFolder) {
+  const names = [...selectedCards].map(c => JSON.parse(c.dataset.lora).name);
+  if (!names.length) return;
+  let ok = 0, fail = 0;
+  for (const name of names) {
+    try {
+      const res = await fetch('/lora_browser/move_lora', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, target_folder: targetFolder})
+      });
+      (await res.json()).ok ? ok++ : fail++;
+    } catch { fail++; }
+  }
+  clearSelection();
+  showToast(ok + ' moved' + (fail ? ', ' + fail + ' failed' : ''));
+  await loadLoras();
 }
 
 /* ── フィルタ ── */
@@ -986,7 +1150,7 @@ function applyFilter() {
     const lora = JSON.parse(card.dataset.lora);
     const cat = lora.category || '';
     const catMatch = activeCat === null || activeCat === '__fav__' || activeCat === '__recent__' ||
-      cat === activeCat || (activeCat !== '' && cat.startsWith(activeCat + '/'));
+      cat === activeCat;
     const favMatch = activeCat !== '__fav__' || favs.includes(lora.name);
     const recentMatch = activeCat !== '__recent__' || recent.includes(lora.name);
     const textMatch = !q
@@ -1022,6 +1186,7 @@ function makeCard(lora) {
   card.innerHTML =
     imgHtml +
     `<div class="card-placeholder" style="${placeholderStyle}">🖼️</div>` +
+    `<div class="card-select-badge">✓</div>` +
     `<div class="card-top">` +
     (lora.base_model ? `<span class="card-base-badge">${esc(abbrevModel(lora.base_model))}</span>` : '<span></span>') +
     `<div class="card-action-btns">` +
@@ -1033,10 +1198,15 @@ function makeCard(lora) {
     `<div class="card-name">${esc(lora.model_name)}</div>` +
     `</div>`;
 
-  card.addEventListener('click', () => openModal(lora));
+  card.addEventListener('click', e => {
+    if (e.ctrlKey || e.metaKey) { toggleCardSelect(card); return; }
+    if (selectedCards.size > 0) { toggleCardSelect(card); return; }
+    openModal(lora);
+  });
   card.draggable = true;
   card.addEventListener('dragstart', e => {
     e.dataTransfer.setData('text/lora-name', lora.name);
+    e.dataTransfer.setData('text/lora-multi', selectedCards.has(card) ? '1' : '0');
     e.dataTransfer.effectAllowed = 'move';
     card.classList.add('dragging');
   });
@@ -1239,9 +1409,9 @@ function updateSyntax() {
   if (inp) {
     const newW = parseFloat(inp.value) || 1.0;
     if (newW !== currentWeight && sentLoraText !== null) {
-      const btn = document.getElementById('lora-send-btn');
-      if (btn) { btn.classList.remove('sent'); btn.innerHTML = SEND_ICON; btn.title = 'Send to txt2img'; }
-      sentLoraText = null;
+      removeWordFromPrompt(sentLoraText, sentLoraText);
+      const newText = '<lora:' + currentLora.name + ':' + newW + '>';
+      sentLoraText = insertWordToPrompt(newText, false);
     }
     currentWeight = newW;
   }
@@ -1285,12 +1455,13 @@ function showTrainedWords(words) {
   }
   container.innerHTML =
     `<div class="trained-words-wrap">` +
-    words.map(tw =>
-      `<div class="trained-word-item" data-word="${esc(tw)}" onclick="sendTrainedWord(this)">` +
-      `<span class="trained-word-text">${esc(tw)}</span>` +
-      `<span class="trained-word-send">+</span>` +
-      `</div>`
-    ).join('') +
+    words.map(tw => {
+      const active = activeWords.has(tw);
+      return `<div class="trained-word-item${active ? ' tw-active' : ''}" data-word="${esc(tw)}" onclick="sendTrainedWord(this)">` +
+        `<span class="trained-word-text">${esc(tw)}</span>` +
+        `<span class="trained-word-send">${active ? '−' : '+'}</span>` +
+        `</div>`;
+    }).join('') +
     `</div>`;
 }
 
@@ -1467,18 +1638,25 @@ function removeWordFromPrompt(word, inserted) {
     const ta = w.document.querySelector('#txt2img_prompt textarea');
     if (!ta) return;
     let v = ta.value;
+    let cursorPos = ta.selectionStart;
     const idx = v.lastIndexOf(inserted);
     if (idx !== -1) {
       v = v.slice(0, idx) + v.slice(idx + inserted.length);
+      cursorPos = idx;
     } else {
-      // Strip leading/trailing separators to get bare word (handles case where word === inserted)
       const cleanWord = (inserted || word).replace(/^[\s,]+/, '').replace(/[\s,]+$/, '').trim();
       const escaped = cleanWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      v = v.replace(new RegExp(',\\s*' + escaped, ''), '')
-           .replace(new RegExp(escaped + '\\s*,\\s*', ''), '')
-           .replace(new RegExp(escaped, ''), '');
+      const matchBefore = v.match(new RegExp(',\\s*' + escaped));
+      const matchAfter = v.match(new RegExp(escaped + '\\s*,\\s*'));
+      const matchPlain = v.match(new RegExp(escaped));
+      const m = matchBefore || matchAfter || matchPlain;
+      if (m) cursorPos = m.index;
+      v = v.replace(new RegExp(',\\s*' + escaped), '')
+           .replace(new RegExp(escaped + '\\s*,\\s*'), '')
+           .replace(new RegExp(escaped), '');
     }
     ta.value = v.trim().replace(/^,\s*/, '').replace(/,\s*$/, '');
+    ta.selectionStart = ta.selectionEnd = Math.min(cursorPos, ta.value.length);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   } catch(e) {}
 }
@@ -1674,6 +1852,182 @@ async function saveSettingsOnly() {
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
 }
+/* ── Folder Manager ── */
+function openFolderMgr() {
+  renderFolderMgr();
+  document.getElementById('folder-mgr-overlay').classList.add('open');
+}
+function closeFolderMgr() {
+  document.getElementById('folder-mgr-overlay').classList.remove('open');
+}
+function onFolderMgrOverlayClick(e) {
+  if (e.target === document.getElementById('folder-mgr-overlay')) closeFolderMgr();
+}
+function buildFmgrTree() {
+  const tree = { children: {}, path: '' };
+  [...allFolders].sort((a,b) => a.localeCompare(b,'ja')).forEach(path => {
+    const parts = path.split('/').filter(Boolean);
+    let node = tree;
+    parts.forEach((part, i) => {
+      if (!node.children[part]) node.children[part] = { children: {}, path: parts.slice(0,i+1).join('/') };
+      node = node.children[part];
+    });
+  });
+  return tree;
+}
+function renderFolderMgr() {
+  const body = document.getElementById('folder-mgr-body');
+  body.innerHTML = '';
+  const tree = buildFmgrTree();
+  if (!Object.keys(tree.children).length) {
+    body.innerHTML = '<div style="color:var(--txt4);font-size:13px;padding:8px 4px">No folders</div>';
+    return;
+  }
+  renderFmgrNode(tree.children, body, 0);
+}
+function renderFmgrNode(dirs, container, depth) {
+  Object.keys(dirs).sort((a,b) => a.localeCompare(b,'ja')).forEach(name => {
+    const node = dirs[name];
+    const hasChildren = Object.keys(node.children).length > 0;
+    const wrap = document.createElement('div');
+
+    const row = document.createElement('div');
+    row.className = 'fmgr-row';
+    row.style.paddingLeft = (depth * 16) + 'px';
+
+    const toggle = document.createElement('span');
+    toggle.style.cssText = 'width:16px;flex-shrink:0;font-size:10px;color:var(--txt4);cursor:pointer;user-select:none';
+    toggle.textContent = hasChildren ? '▶' : '';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'fmgr-name';
+    nameEl.textContent = name;
+
+    const loraCnt = allLoras.filter(l => l.category === node.path).length;
+    const cnt = document.createElement('span');
+    cnt.style.cssText = 'font-size:11px;color:var(--txt4);flex-shrink:0;min-width:20px;text-align:right';
+    cnt.textContent = loraCnt || '';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'fmgr-btn'; addBtn.title = 'Create subfolder'; addBtn.textContent = '+';
+    addBtn.onclick = e => { e.stopPropagation(); showFmgrCreate(wrap, node.path); };
+
+    const renBtn = document.createElement('button');
+    renBtn.className = 'fmgr-btn'; renBtn.title = 'Rename'; renBtn.textContent = '✎';
+    renBtn.onclick = e => { e.stopPropagation(); startFolderMgrRename(row, nameEl, node.path); };
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'fmgr-btn del'; delBtn.title = 'Delete'; delBtn.textContent = '×';
+    delBtn.onclick = e => { e.stopPropagation(); deleteFolderFromMgr(node.path); };
+
+    row.appendChild(toggle); row.appendChild(nameEl); row.appendChild(cnt);
+    row.appendChild(addBtn); row.appendChild(renBtn); row.appendChild(delBtn);
+    wrap.appendChild(row);
+
+    if (hasChildren) {
+      const childWrap = document.createElement('div');
+      childWrap.style.display = 'none';
+      renderFmgrNode(node.children, childWrap, depth + 1);
+      wrap.appendChild(childWrap);
+      toggle.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = childWrap.style.display === 'none';
+        childWrap.style.display = open ? '' : 'none';
+        toggle.textContent = open ? '▼' : '▶';
+      });
+    }
+    container.appendChild(wrap);
+  });
+}
+function showFmgrCreate(parentWrap, parentPath) {
+  const existing = parentWrap.querySelector('.fmgr-create-row');
+  if (existing) { existing.remove(); return; }
+  const row = document.createElement('div');
+  row.className = 'fmgr-row fmgr-create-row';
+  row.style.paddingLeft = ((parentPath.split('/').length) * 16) + 'px';
+  const inp = document.createElement('input');
+  inp.placeholder = 'New folder name';
+  inp.style.cssText = 'flex:1;background:var(--bg3);border:1px solid var(--pri);border-radius:4px;color:var(--txt);font-size:13px;padding:3px 8px';
+  const ok = document.createElement('button');
+  ok.className = 'fmgr-btn'; ok.textContent = '✓';
+  const cancel = document.createElement('button');
+  cancel.className = 'fmgr-btn'; cancel.textContent = '×';
+  cancel.onclick = () => row.remove();
+  const commit = async () => {
+    const name = inp.value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    if (!name) return;
+    const fullPath = parentPath ? parentPath + '/' + name : name;
+    row.remove();
+    await createFolder(fullPath);
+    renderFolderMgr();
+  };
+  ok.onclick = commit;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') row.remove(); });
+  row.appendChild(inp); row.appendChild(ok); row.appendChild(cancel);
+  parentWrap.appendChild(row);
+  inp.focus();
+}
+function startFolderMgrRename(row, nameEl, folderPath) {
+  if (row.querySelector('.fmgr-name-input')) return;
+  nameEl.style.display = 'none';
+  const inp = document.createElement('input');
+  inp.className = 'fmgr-name-input';
+  inp.value = folderPath.split('/').pop();
+  row.insertBefore(inp, nameEl.nextSibling);
+  inp.focus(); inp.select();
+  const cancel = () => { inp.remove(); nameEl.style.display = ''; };
+  const commit = async () => {
+    const newName = inp.value.trim();
+    if (!newName || newName === folderPath.split('/').pop()) { cancel(); return; }
+    try {
+      const res = await fetch('/lora_browser/rename_folder', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old_path: folderPath, new_name: newName})
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast('Error: ' + (data.error || 'Failed')); cancel(); return; }
+      showToast('Renamed');
+      await loadLoras();
+      renderFolderMgr();
+    } catch(e) { showToast('Error: ' + e.message); cancel(); }
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); });
+  inp.addEventListener('blur', () => setTimeout(cancel, 150));
+}
+async function deleteFolderFromMgr(folderPath) {
+  const counts = {};
+  allLoras.forEach(l => { if (l.category) counts[l.category] = (counts[l.category] || 0) + 1; });
+  if (counts[folderPath] > 0) { showToast('Folder is not empty'); return; }
+  if (!confirm('Delete folder "' + folderPath + '"?')) return;
+  try {
+    const res = await fetch('/lora_browser/delete_folder', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: folderPath})
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    showToast('Deleted: ' + folderPath);
+    await loadLoras();
+    renderFolderMgr();
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+async function addFolderFromMgr() {
+  const parent = document.getElementById('fmgr-parent').value;
+  const name = document.getElementById('fmgr-new-name').value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!name) return;
+  const fullPath = parent ? parent + '/' + name : name;
+  try {
+    const res = await fetch('/lora_browser/create_folder', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: fullPath})
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    document.getElementById('fmgr-new-name').value = '';
+    showToast('Created: ' + fullPath);
+    await loadLoras();
+    renderFolderMgr();
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
 function getCivitaiHeaders() {
   const key = getSetting('civitai_api_key', '');
   return key ? {'Content-Type': 'application/json', 'X-Civitai-Api-Key': key}
@@ -2213,6 +2567,29 @@ def _register_api(_, app: FastAPI):
         import shutil as _shutil
         _shutil.rmtree(str(target))
         return JSONResponse(content={"ok": True})
+
+    @app.post("/lora_browser/rename_folder")
+    async def rename_folder_api(request: Request):
+        data = await request.json()
+        old_path = data.get("old_path", "").strip()
+        new_name = data.get("new_name", "").strip()
+        if not old_path or not new_name or ".." in old_path or any(c in new_name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid"})
+        lora_dir = _get_lora_dir()
+        old_full = lora_dir / old_path
+        try:
+            old_full.resolve().relative_to(lora_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not old_full.exists() or not old_full.is_dir():
+            return JSONResponse(status_code=404, content={"error": "Folder not found"})
+        new_full = old_full.parent / new_name
+        if new_full.exists():
+            return JSONResponse(status_code=400, content={"error": "Name already exists"})
+        old_full.rename(new_full)
+        parent = "/".join(old_path.split("/")[:-1])
+        new_path = (parent + "/" + new_name).lstrip("/")
+        return JSONResponse(content={"ok": True, "new_path": new_path})
 
     @app.post("/lora_browser/rename")
     async def rename_lora(request: Request):
