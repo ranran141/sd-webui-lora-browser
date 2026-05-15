@@ -431,6 +431,8 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 #folder-mgr-head { padding: 14px 18px 12px; display: flex; align-items: center;
   justify-content: space-between; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
 #folder-mgr-title { font-size: 15px; font-weight: 700; color: var(--acc); }
+#folder-mgr-new-root { font-size: 12px; padding: 3px 10px; opacity: 0.85; }
+#folder-mgr-new-root:hover { opacity: 1; }
 #folder-mgr-close { background: none; border: none; color: var(--txt4); font-size: 18px;
   cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: all 0.15s; }
 #folder-mgr-close:hover { background: var(--bg4h); color: var(--txt); }
@@ -444,16 +446,23 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 #folder-mgr-add button { padding: 6px 14px; background: var(--pri-bg); border: 1px solid var(--pri);
   border-radius: 6px; color: var(--acc); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 #folder-mgr-add button:hover { background: var(--pri-bg2); }
-.fmgr-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-  border-radius: 6px; transition: background 0.12s; }
+.fmgr-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  border-radius: 6px; transition: background 0.12s; cursor: default; }
 .fmgr-row:hover { background: var(--pri-bg); }
-.fmgr-indent { color: var(--txt4); font-size: 11px; flex-shrink: 0; user-select: none; }
-.fmgr-name { flex: 1; font-size: 13px; color: var(--txt2); cursor: text; }
+.fmgr-toggle { width: 16px; flex-shrink: 0; font-size: 10px; color: var(--txt4);
+  cursor: pointer; user-select: none; text-align: center; }
+.fmgr-icon { flex-shrink: 0; font-size: 13px; opacity: 0.6; user-select: none; }
+.fmgr-name { flex: 1; font-size: 13px; color: var(--txt2); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fmgr-name-input { flex: 1; background: var(--bg3); border: 1px solid var(--pri);
   border-radius: 4px; color: var(--txt); font-size: 13px; padding: 2px 6px; }
+.fmgr-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
+.fmgr-row:hover .fmgr-actions { opacity: 1; }
 .fmgr-btn { background: none; border: 1px solid transparent; border-radius: 5px;
-  color: var(--txt4); font-size: 13px; cursor: pointer; padding: 2px 6px; transition: all 0.12s; }
+  color: var(--txt3); font-size: 11px; font-weight: 500; cursor: pointer;
+  padding: 2px 8px; transition: all 0.12s; white-space: nowrap; }
 .fmgr-btn:hover { border-color: var(--pri); color: var(--acc); background: var(--pri-bg); }
+.fmgr-btn.del { color: var(--txt4); }
 .fmgr-btn.del:hover { border-color: #c55; color: #f66; background: rgba(200,80,80,0.1); }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--pri); color: white; padding: 10px 20px; border-radius: 20px;
@@ -600,7 +609,10 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
   <div id="folder-mgr-modal">
     <div id="folder-mgr-head">
       <div id="folder-mgr-title">📁 Folder Manager</div>
-      <button id="folder-mgr-close" onclick="closeFolderMgr()">✕</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="folder-mgr-new-root" class="fmgr-btn" onclick="showFmgrCreate(document.getElementById('folder-mgr-body'), '')" title="Create root folder">+ New Folder</button>
+        <button id="folder-mgr-close" onclick="closeFolderMgr()">✕</button>
+      </div>
     </div>
     <div id="folder-mgr-body"></div>
   </div>
@@ -1893,35 +1905,38 @@ function renderFmgrNode(dirs, container, depth) {
 
     const row = document.createElement('div');
     row.className = 'fmgr-row';
-    row.style.paddingLeft = (depth * 16) + 'px';
+    row.style.paddingLeft = (depth * 16 + 8) + 'px';
 
     const toggle = document.createElement('span');
-    toggle.style.cssText = 'width:16px;flex-shrink:0;font-size:10px;color:var(--txt4);cursor:pointer;user-select:none';
+    toggle.className = 'fmgr-toggle';
     toggle.textContent = hasChildren ? '▶' : '';
+
+    const icon = document.createElement('span');
+    icon.className = 'fmgr-icon';
+    icon.textContent = hasChildren ? '📂' : '📁';
 
     const nameEl = document.createElement('span');
     nameEl.className = 'fmgr-name';
+    nameEl.title = node.path;
     nameEl.textContent = name;
 
-    const loraCnt = allLoras.filter(l => l.category === node.path).length;
-    const cnt = document.createElement('span');
-    cnt.style.cssText = 'font-size:11px;color:var(--txt4);flex-shrink:0;min-width:20px;text-align:right';
-    cnt.textContent = loraCnt || '';
+    const actions = document.createElement('div');
+    actions.className = 'fmgr-actions';
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'fmgr-btn'; addBtn.title = 'Create subfolder'; addBtn.textContent = '+';
+    addBtn.className = 'fmgr-btn'; addBtn.title = 'Create subfolder'; addBtn.textContent = '+ New';
     addBtn.onclick = e => { e.stopPropagation(); showFmgrCreate(wrap, node.path); };
 
     const renBtn = document.createElement('button');
-    renBtn.className = 'fmgr-btn'; renBtn.title = 'Rename'; renBtn.textContent = '✎';
+    renBtn.className = 'fmgr-btn'; renBtn.title = 'Rename folder'; renBtn.textContent = 'Rename';
     renBtn.onclick = e => { e.stopPropagation(); startFolderMgrRename(row, nameEl, node.path); };
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'fmgr-btn del'; delBtn.title = 'Delete'; delBtn.textContent = '×';
+    delBtn.className = 'fmgr-btn del'; delBtn.title = 'Delete folder'; delBtn.textContent = 'Delete';
     delBtn.onclick = e => { e.stopPropagation(); deleteFolderFromMgr(node.path); };
 
-    row.appendChild(toggle); row.appendChild(nameEl); row.appendChild(cnt);
-    row.appendChild(addBtn); row.appendChild(renBtn); row.appendChild(delBtn);
+    actions.appendChild(addBtn); actions.appendChild(renBtn); actions.appendChild(delBtn);
+    row.appendChild(toggle); row.appendChild(icon); row.appendChild(nameEl); row.appendChild(actions);
     wrap.appendChild(row);
 
     if (hasChildren) {
@@ -1929,12 +1944,17 @@ function renderFmgrNode(dirs, container, depth) {
       childWrap.style.display = 'none';
       renderFmgrNode(node.children, childWrap, depth + 1);
       wrap.appendChild(childWrap);
-      toggle.addEventListener('click', e => {
+      const toggleExpand = e => {
         e.stopPropagation();
         const open = childWrap.style.display === 'none';
         childWrap.style.display = open ? '' : 'none';
         toggle.textContent = open ? '▼' : '▶';
-      });
+        icon.textContent = open ? '📂' : '📂';
+      };
+      toggle.addEventListener('click', toggleExpand);
+      icon.addEventListener('click', toggleExpand);
+      nameEl.style.cursor = 'pointer';
+      nameEl.addEventListener('click', toggleExpand);
     }
     container.appendChild(wrap);
   });
@@ -1944,7 +1964,8 @@ function showFmgrCreate(parentWrap, parentPath) {
   if (existing) { existing.remove(); return; }
   const row = document.createElement('div');
   row.className = 'fmgr-row fmgr-create-row';
-  row.style.paddingLeft = ((parentPath.split('/').length) * 16) + 'px';
+  const depth = parentPath ? parentPath.split('/').length : 0;
+  row.style.paddingLeft = (depth * 16 + 8) + 'px';
   const inp = document.createElement('input');
   inp.placeholder = 'New folder name';
   inp.style.cssText = 'flex:1;background:var(--bg3);border:1px solid var(--pri);border-radius:4px;color:var(--txt);font-size:13px;padding:3px 8px';
