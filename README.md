@@ -1,6 +1,6 @@
 # sd-webui-lora-browser
 
-Stable Diffusion WebUI / Forge / Reforge 向けの LORA ブラウザ拡張機能です。
+Stable Diffusion WebUI / Forge Neo / Reforge 向けの LORA ブラウザ拡張機能です。
 
 ## 機能
 
