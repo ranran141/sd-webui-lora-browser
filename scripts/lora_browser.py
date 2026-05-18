@@ -1747,10 +1747,8 @@ function startEditWords() {
   addRow.style.marginTop = '8px';
   addRow.innerHTML =
     `<textarea id="tw-new-word" class="tw-edit-input" placeholder="Add trigger word..." rows="1" ` +
-    `style="resize:none;overflow:hidden;line-height:1.5;word-break:break-all;" ` +
-    `onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addWordFromInput()}" ` +
-    `oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>` +
-    `<button class="tw-add-btn" style="width:auto;padding:0 12px;margin:0;border-style:solid;font-size:18px" onclick="addWordFromInput()">+</button>`;
+    `style="resize:none;overflow:hidden;line-height:1.5;word-break:break-all;width:100%;" ` +
+    `oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>`;
   const actions = document.createElement('div');
   actions.className = 'tw-edit-actions';
   actions.innerHTML =
@@ -1767,6 +1765,8 @@ async function saveWords() {
   if (!currentLora) return;
   const container = document.getElementById('tw-container');
   if (!container) return;
+  const pending = document.getElementById('tw-new-word');
+  if (pending && pending.value.trim()) addWordFromInput();
   const words = Array.from(container.querySelectorAll('#tw-edit-list .trained-word-item'))
     .map(item => {
       const inp = item.querySelector('input, textarea');
