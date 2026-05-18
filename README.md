@@ -33,8 +33,6 @@ Stable Diffusion WebUI / Forge Neo / Reforge 向けの LORA ブラウザ拡張�
 ### v1.4.0 (2026-05-19)
 - チェックポイント（モデルファイル）の読み込みに対応
   - サイドバーにLoRA/CP切り替えタブを追加
-  - CPカードクリックでモーダル表示（モデル名・作者・Base Model・ファイルパス）
-  - CivitAIメタデータの一括取得（Fetch All）がCPにも対応
   - 設定欄にCPフォルダパスを追加（未設定時はデフォルトパスを使用）
 - fetchAll で作者名が取得されないバグを修正
 
