@@ -3124,7 +3124,18 @@ def _scan_checkpoints():
                         url = img.get("url", "")
                         if not url or img.get("type", "image") != "image" or len(result) >= 6:
                             continue
-                        result.append({"url": url, "width": img.get("width", 0), "height": img.get("height", 0), "meta": img.get("meta") or {}})
+                        meta = img.get("meta") or {}
+                        result.append({
+                            "url": url,
+                            "prompt": (meta.get("prompt") or "")[:2000],
+                            "neg": (meta.get("negativePrompt") or "")[:2000],
+                            "steps": meta.get("steps", ""),
+                            "cfg": meta.get("cfgScale", ""),
+                            "sampler": (meta.get("sampler") or "")[:40],
+                            "model": (meta.get("Model") or meta.get("model") or "")[:60],
+                            "seed": meta.get("seed", ""),
+                            "size": (meta.get("Size") or "")[:20],
+                        })
                     return result
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
                 model_name = mdata.get("model_name") or name
