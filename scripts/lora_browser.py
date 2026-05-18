@@ -854,7 +854,14 @@ function openCpModal(cp) {
         `<div style="flex:1;font-size:14px;color:var(--txt3);word-break:break-all;line-height:1.4">${esc(cp.file_path)}</div>` +
         `<button class="icon-action-btn" onclick="fetch('/lora_browser/open_folder_cp?file='+encodeURIComponent('${esc(cp.file)}'))" title="Open folder">${SVG_FOLDER}</button></div>`
       : '') +
-    `</div>`;
+    `</div>` +
+    buildSampleImages(cp.sample_images) +
+    (cp.civitai_html
+      ? `<div class="info-section">` +
+        `<div class="tw-header"><div class="info-label">Description</div>` +
+        `<button class="tw-edit-btn" onclick="toggleSection(this)">Show</button></div>` +
+        `<div class="civitai-html-wrap" style="display:none">${cp.civitai_html}</div>` +
+        `</div>` : '');
 
   addRecent(cp.name);
   document.getElementById('modal-overlay').style.display = 'flex';
@@ -3094,11 +3101,26 @@ def _scan_checkpoints():
         creator = {}
         civitai_model_id = 0
         civitai_version_id = 0
+        sample_images = []
+        civitai_html = ""
 
         meta_path = path.parent / (name + ".metadata.json")
         info_path = path.parent / (name + ".civitai.info")
         if meta_path.exists():
             try:
+                import re as _re
+                def _sanitize(raw):
+                    s = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw, flags=_re.DOTALL|_re.IGNORECASE)
+                    s = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', s, flags=_re.IGNORECASE)
+                    return _re.sub(r"\son\w+\s*=\s*'[^']*'", '', s, flags=_re.IGNORECASE).strip()
+                def _parse_imgs(images_list):
+                    result = []
+                    for img in (images_list or []):
+                        url = img.get("url", "")
+                        if not url or img.get("type", "image") != "image" or len(result) >= 6:
+                            continue
+                        result.append({"url": url, "width": img.get("width", 0), "height": img.get("height", 0), "meta": img.get("meta") or {}})
+                    return result
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
                 model_name = mdata.get("model_name") or name
                 base_model = mdata.get("base_model") or ""
@@ -3106,6 +3128,9 @@ def _scan_checkpoints():
                 civitai = mdata.get("civitai") or {}
                 civitai_model_id = int(civitai.get("modelId") or 0)
                 civitai_version_id = int(civitai.get("id") or 0)
+                raw_desc = mdata.get("modelDescription") or civitai.get("description") or ""
+                civitai_html = _sanitize(raw_desc)
+                sample_images = _parse_imgs(civitai.get("images"))
             except Exception:
                 pass
         elif info_path.exists():
@@ -3131,6 +3156,8 @@ def _scan_checkpoints():
             "creator": creator,
             "civitai_model_id": civitai_model_id,
             "civitai_version_id": civitai_version_id,
+            "sample_images": sample_images,
+            "civitai_html": civitai_html,
         })
     return checkpoints
 
