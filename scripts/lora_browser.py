@@ -695,6 +695,7 @@ const CP_CTX = {
 let _fmgrCtx = LORA_CTX;
 let activeCat = null;
 let currentLora = null;
+let currentCp = null;
 let sortBy = 'path';
 let sortDir = 'asc';
 let previewVer = Date.now();
@@ -801,6 +802,8 @@ function makeCpCard(cp) {
 }
 
 function openCpModal(cp) {
+  currentCp = cp;
+  currentLora = null;
   document.getElementById('modal-model-name').innerHTML = `<span>${esc(cp.model_name || cp.name)}</span>`;
 
   const fetchBtn = document.getElementById('btn-fetch-civitai');
@@ -1901,6 +1904,7 @@ function closeModal() {
   document.getElementById('modal-overlay').style.display = 'none';
   document.removeEventListener('keydown', onModalKey);
   currentLora = null;
+  currentCp = null;
   sentLoraText = null;
 }
 function onOverlayClick(e) {
@@ -2943,8 +2947,9 @@ function buildSampleImages(images) {
     `</div>`;
 }
 function toggleSampleSend(el, idx, type) {
-  if (!currentLora) return;
-  const img = (currentLora.sample_images || [])[idx];
+  const item = currentLora || currentCp;
+  if (!item) return;
+  const img = (item.sample_images || [])[idx];
   if (!img) return;
   const text = type === 'pos' ? img.prompt : img.neg;
   if (!text) return;
