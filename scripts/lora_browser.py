@@ -724,10 +724,16 @@ async function loadCheckpoints() {
 function buildCpSections() {
   const content = document.getElementById('content');
   content.innerHTML = '';
+  const q = document.getElementById('search').value.toLowerCase();
+  const favs = getFavs();
+  const recent = getRecent();
   const filtered = allCheckpoints.filter(cp => {
+    if (activeCat === '__fav__') return favs.includes(cp.name);
+    if (activeCat === '__recent__') return recent.includes(cp.name);
     if (activeCat !== null && cp.category !== activeCat) return false;
-    const q = document.getElementById('search').value.toLowerCase();
-    if (q && !cp.name.toLowerCase().includes(q) && !cp.category.toLowerCase().includes(q)) return false;
+    if (q && !cp.name.toLowerCase().includes(q) &&
+        !(cp.model_name || '').toLowerCase().includes(q) &&
+        !(cp.category || '').toLowerCase().includes(q)) return false;
     return true;
   });
   if (!filtered.length) { content.innerHTML = '<div style="color:var(--txt4);padding:20px">No checkpoints found.</div>'; return; }
@@ -739,7 +745,7 @@ function buildCpSections() {
 
 function makeCpCard(cp) {
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card' + (isFav(cp.name) ? ' fav-card' : '');
   const imgHtml = cp.preview
     ? `<img class="card-img" src="/lora_browser/preview_cp?path=${encodeURIComponent(cp.preview)}&_v=${previewVer}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
     : '';
@@ -748,13 +754,18 @@ function makeCpCard(cp) {
     imgHtml +
     `<div class="card-placeholder" style="${placeholderStyle}">🗂️</div>` +
     `<div class="card-top">` +
-    `<span></span>` +
-    `<div class="card-action-btns"></div>` +
+    (cp.base_model ? `<span class="card-base-badge">${esc(abbrevModel(cp.base_model))}</span>` : '<span></span>') +
+    `<div class="card-action-btns">` +
+    `<button class="card-fav-btn ${isFav(cp.name) ? 'active' : ''}"
+       onclick="onCardFav(event,this,'${esc(cp.name)}')">${isFav(cp.name) ? '★' : '☆'}</button>` +
+    `</div>` +
     `</div>` +
     `<div class="card-bottom">` +
-    `<div class="card-name">${esc(cp.name)}</div>` +
+    `<div class="card-name">${esc(cp.model_name || cp.name)}</div>` +
     `</div>`;
-  card.addEventListener('click', () => openCpModal(cp));
+  card.addEventListener('click', e => {
+    if (!e.target.closest('.card-fav-btn')) openCpModal(cp);
+  });
   return card;
 }
 
@@ -810,6 +821,7 @@ function openCpModal(cp) {
       : '') +
     `</div>`;
 
+  addRecent(cp.name);
   document.getElementById('modal-overlay').style.display = 'flex';
   document.addEventListener('keydown', onModalKey);
 }
@@ -1014,12 +1026,30 @@ function buildSidebar() {
 function buildCpSidebar() {
   const list = document.getElementById('cat-list');
   list.innerHTML = '';
+  const showFavs = getSetting('show_favs', '1') === '1';
+  const showRecent = getSetting('show_recent', '1') === '1';
+
+  if (showRecent) {
+    const recentBtn = makeFlatBtn('__recent__', '🕐 Recently Used', getRecent().length);
+    recentBtn.id = 'recent-sidebar-btn';
+    list.appendChild(recentBtn);
+  }
+  if (showFavs) {
+    const favBtn = makeFlatBtn('__fav__', '⭐ Favorites', getFavs().length);
+    favBtn.id = 'fav-sidebar-btn';
+    list.appendChild(favBtn);
+  }
+  if (showRecent || showFavs) {
+    list.appendChild(Object.assign(document.createElement('div'), { className: 'sidebar-divider' }));
+  }
+
   const allBtn = document.createElement('button');
   allBtn.className = 'cat-btn active';
   allBtn.id = 'all-sidebar-btn';
   allBtn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">All</span></div>`;
-  allBtn.addEventListener('click', () => { activeCat = null; allBtn.classList.add('active'); buildCpSections(); });
+  allBtn.addEventListener('click', () => setCat('', allBtn));
   list.appendChild(allBtn);
+
   const seen = new Set();
   allCheckpoints.forEach(cp => {
     const cat = cp.category;
@@ -1029,12 +1059,7 @@ function buildCpSidebar() {
     btn.className = 'cat-btn';
     const count = allCheckpoints.filter(c => c.category === cat).length;
     btn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">${cat}</span><span class="cat-badge">${count}</span></div>`;
-    btn.addEventListener('click', () => {
-      list.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeCat = cat;
-      buildCpSections();
-    });
+    btn.addEventListener('click', () => setCat(cat, btn));
     list.appendChild(btn);
   });
 }
