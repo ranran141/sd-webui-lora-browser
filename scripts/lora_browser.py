@@ -585,6 +585,14 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       <div id="bulk-fetch-result"></div>
       <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true" style="align-self:flex-end">■ Stop</button>
     </div>
+    <div class="settings-row" style="margin-top:8px">
+      <div class="settings-label">Version</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="update-current" style="font-size:13px;color:var(--txt3)">v1.3.0</span>
+        <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
+        <span id="update-result" style="font-size:13px"></span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2058,6 +2066,33 @@ async function autoSaveLoraDirSetting() {
 }
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
+}
+async function checkUpdate() {
+  const btn = document.getElementById('btn-check-update');
+  const result = document.getElementById('update-result');
+  const CURRENT = '1.3.0';
+  btn.disabled = true;
+  result.textContent = 'Checking...';
+  result.style.color = 'var(--txt3)';
+  try {
+    const res = await fetch(
+      'https://raw.githubusercontent.com/ranran141/sd-webui-lora-browser/main/version.txt',
+      { cache: 'no-store' }
+    );
+    if (!res.ok) throw new Error('fetch failed');
+    const latest = (await res.text()).trim();
+    if (latest === CURRENT) {
+      result.textContent = 'Up to date';
+      result.style.color = '#22c55e';
+    } else {
+      result.innerHTML = `<a href="https://github.com/ranran141/sd-webui-lora-browser" target="_blank" rel="noopener" style="color:#f59e0b">v${latest} available</a>`;
+    }
+  } catch(e) {
+    result.textContent = 'Failed to check';
+    result.style.color = '#ef4444';
+  } finally {
+    btn.disabled = false;
+  }
 }
 /* ── Folder Manager ── */
 let fmgrOrder = {};
