@@ -766,6 +766,13 @@ function makeCpCard(cp) {
   card.addEventListener('click', e => {
     if (!e.target.closest('.card-fav-btn')) openCpModal(cp);
   });
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/cp-name', cp.name);
+    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
   return card;
 }
 
@@ -1052,6 +1059,7 @@ function buildCpSidebar() {
   allBtn.id = 'all-sidebar-btn';
   allBtn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">All</span></div>`;
   allBtn.addEventListener('click', () => setCat('', allBtn));
+  addCpFolderDrop(allBtn, '');
   list.appendChild(allBtn);
 
   const seen = new Set();
@@ -1064,6 +1072,7 @@ function buildCpSidebar() {
     const count = allCheckpoints.filter(c => c.category === cat).length;
     btn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">${cat}</span><span class="cat-badge">${count}</span></div>`;
     btn.addEventListener('click', () => setCat(cat, btn));
+    addCpFolderDrop(btn, cat);
     list.appendChild(btn);
   });
 }
@@ -1278,6 +1287,38 @@ async function moveLora(name, targetFolder) {
     closeModal();
     loadLoras();
   } catch(e) { showToast('Error: ' + e.message); }
+}
+async function moveCp(name, targetFolder) {
+  try {
+    const res = await fetch('/lora_browser/move_cp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, target_folder: targetFolder})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Move failed');
+    showToast('Moved to ' + (targetFolder || 'root'));
+    closeModal();
+    loadCheckpoints();
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+function addCpFolderDrop(el, folderPath) {
+  el.addEventListener('dragover', e => {
+    if (!e.dataTransfer.types.includes('text/cp-name')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    el.classList.add('drag-over');
+  });
+  el.addEventListener('dragleave', e => {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over');
+  });
+  el.addEventListener('drop', async e => {
+    e.preventDefault();
+    el.classList.remove('drag-over');
+    const name = e.dataTransfer.getData('text/cp-name');
+    if (!name) return;
+    await moveCp(name, folderPath);
+  });
 }
 function renderSidebarNode(node, container, depth, parentPath) {
   getFmgrSortedKeys(node.dirs, parentPath).forEach(dirName => {
@@ -3448,6 +3489,42 @@ def _register_api(_, app: FastAPI):
                 return JSONResponse(status_code=400, content={"error": "Invalid target path"})
         else:
             target_dir = lora_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        parent = source_sf.parent
+        moved = []
+        for ext in [".safetensors", ".json", ".metadata.json", ".civitai.info",
+                    ".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp",
+                    ".png", ".jpg", ".jpeg", ".webp"]:
+            p = parent / (name + ext)
+            if p.exists():
+                new_path = target_dir / p.name
+                if not new_path.exists():
+                    p.rename(new_path)
+                    moved.append(p.name)
+        return JSONResponse(content={"ok": True, "moved": moved})
+
+    @app.post("/lora_browser/move_cp")
+    async def move_cp(request: Request):
+        data = await request.json()
+        name = data.get("name", "")
+        target_folder = data.get("target_folder", "")
+        if not name or any(c in name for c in ('\\', '/', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid name"})
+        cp_dir = _get_checkpoint_dir()
+        source_sf = None
+        for sf in cp_dir.rglob(name + ".safetensors"):
+            source_sf = sf
+            break
+        if not source_sf or not source_sf.exists():
+            return JSONResponse(status_code=404, content={"error": "Checkpoint not found"})
+        if target_folder:
+            target_dir = cp_dir / target_folder
+            try:
+                target_dir.resolve().relative_to(cp_dir.resolve())
+            except ValueError:
+                return JSONResponse(status_code=400, content={"error": "Invalid target path"})
+        else:
+            target_dir = cp_dir
         target_dir.mkdir(parents=True, exist_ok=True)
         parent = source_sf.parent
         moved = []
