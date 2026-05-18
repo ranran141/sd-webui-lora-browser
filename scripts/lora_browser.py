@@ -773,7 +773,9 @@ function openCpModal(cp) {
   document.getElementById('modal-model-name').innerHTML = `<span>${esc(cp.model_name || cp.name)}</span>`;
 
   document.getElementById('btn-fetch-civitai').style.display = 'none';
-  document.querySelector('#modal-actions .delete-btn').style.display = 'none';
+  const delBtn = document.querySelector('#modal-actions .delete-btn');
+  delBtn.style.display = '';
+  delBtn.onclick = () => deleteCp(cp);
 
   const civBtn = document.getElementById('btn-civitai');
   if (cp.civitai_model_id) {
@@ -1670,7 +1672,9 @@ function openModal(lora) {
     `<button class="icon-action-btn" onclick="startRename()" title="Rename display name" style="flex-shrink:0">${SVG_PENCIL}</button>`;
 
   document.getElementById('btn-fetch-civitai').style.display = '';
-  document.querySelector('#modal-actions .delete-btn').style.display = '';
+  const delBtn = document.querySelector('#modal-actions .delete-btn');
+  delBtn.style.display = '';
+  delBtn.onclick = deleteLora;
 
   const civBtn = document.getElementById('btn-civitai');
   if (lora.civitai_model_id) {
@@ -2105,6 +2109,21 @@ async function deleteLora() {
     updateCount(allLoras.length);
     closeModal();
     showToast('Deleted: ' + modelName);
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+async function deleteCp(cp) {
+  if (!confirm('Delete "' + (cp.model_name || cp.name) + '"?\nThis cannot be undone.')) return;
+  try {
+    const res = await fetch('/lora_browser/delete_cp?name=' + encodeURIComponent(cp.name), { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).error || 'Delete failed');
+    allCheckpoints = allCheckpoints.filter(c => c.name !== cp.name);
+    closeModal();
+    buildCpSections();
+    buildCpSidebar();
+    showToast('Deleted: ' + (cp.model_name || cp.name));
   } catch(e) {
     showToast('Error: ' + e.message);
   }
@@ -3353,6 +3372,22 @@ def _register_api(_, app: FastAPI):
             deleted = []
             for ext in [".safetensors", ".json", ".metadata.json",
                         ".preview.png", ".preview.jpg", ".preview.jpeg"]:
+                p = sf.parent / (sf.stem + ext)
+                if p.exists():
+                    p.unlink()
+                    deleted.append(p.name)
+            return JSONResponse(content={"ok": True, "deleted": deleted})
+        return JSONResponse(status_code=404, content={"error": "Not found"})
+
+    @app.delete("/lora_browser/delete_cp")
+    def delete_cp(name: str):
+        if not name or any(c in name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid name"})
+        cp_dir = _get_checkpoint_dir()
+        for sf in cp_dir.rglob(name + ".safetensors"):
+            deleted = []
+            for ext in [".safetensors", ".json", ".metadata.json", ".civitai.info",
+                        ".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]:
                 p = sf.parent / (sf.stem + ext)
                 if p.exists():
                     p.unlink()
