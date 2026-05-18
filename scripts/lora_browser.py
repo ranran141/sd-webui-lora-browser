@@ -350,10 +350,11 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 .file-info-path { color: var(--txt3); font-size: 11px; }
 #modal-info-col { flex: 1; overflow-y: auto; padding: 16px 20px; }
 .info-section { margin-bottom: 16px; }
-.creator-row { display:flex; align-items:center; gap:8px; text-decoration:none; margin-bottom:12px; }
-.creator-row:hover .creator-username { text-decoration:underline; }
-.creator-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; flex-shrink:0; }
-.creator-username { font-size:14px; color:var(--pri); font-weight:500; }
+.modal-creator-link { display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+  padding:5px 10px; border-radius:8px; border:1px solid var(--bd2); background:var(--bg3);
+  color:var(--txt2); font-size:13px; transition:background 0.15s; }
+.modal-creator-link:hover { background:var(--bg4); color:var(--txt); }
+.creator-avatar { width:22px; height:22px; border-radius:50%; object-fit:cover; flex-shrink:0; }
 .info-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--txt); margin-bottom: 4px; }
 .info-label-hint { display: block; font-size: 12px; color: var(--txt4); font-weight: 400;
@@ -594,6 +595,10 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
     <div id="modal-head">
       <div id="modal-model-name"></div>
       <div id="modal-actions">
+        <a id="btn-creator" class="modal-creator-link" href="" target="_blank" rel="noopener" style="display:none">
+          <img id="creator-avatar-img" class="creator-avatar" src="" onerror="this.style.display='none'">
+          <span id="creator-username-text"></span>
+        </a>
         <button class="modal-action-btn civitai-btn" id="btn-civitai" onclick="openCivitai()" style="display:none">🌐 civitai</button>
         <button class="modal-action-btn fetch-btn" id="btn-fetch-civitai" onclick="fetchCivitai()">🔄 Fetch</button>
         <button class="modal-action-btn delete-btn" onclick="deleteLora()">🗑 Delete</button>
@@ -1464,6 +1469,18 @@ function openModal(lora) {
     civBtn.style.display = 'none';
   }
 
+  const creatorBtn = document.getElementById('btn-creator');
+  if (lora.creator && lora.creator.username) {
+    creatorBtn.style.display = '';
+    creatorBtn.href = `https://civitai.com/user/${encodeURIComponent(lora.creator.username)}`;
+    const avatarImg = document.getElementById('creator-avatar-img');
+    if (lora.creator.image) { avatarImg.src = lora.creator.image; avatarImg.style.display = ''; }
+    else { avatarImg.style.display = 'none'; }
+    document.getElementById('creator-username-text').textContent = lora.creator.username;
+  } else {
+    creatorBtn.style.display = 'none';
+  }
+
   const previewCol = document.getElementById('modal-preview-col');
   const imgPart = lora.preview
     ? `<div id="preview-img-wrap">` +
@@ -1507,13 +1524,6 @@ function openModal(lora) {
     `</div>` +
     trainedWordsHtml +
     `<div class="info-section">` +
-    ((lora.creator && lora.creator.username)
-      ? `<div class="info-label">Creator</div>` +
-        `<a class="creator-row" href="https://civitai.com/user/${esc(lora.creator.username)}" target="_blank" rel="noopener" style="margin-bottom:12px">` +
-        (lora.creator.image ? `<img class="creator-avatar" src="${esc(lora.creator.image)}" onerror="this.style.display='none'">` : '') +
-        `<span class="creator-username">${esc(lora.creator.username)}</span>` +
-        `</a>`
-      : '') +
     (lora.base_model ?
       `<div class="info-label">Base Model</div>` +
       `<div class="pvi-value" style="margin-bottom:12px;font-size:14px">${esc(lora.base_model)}</div>` : '') +
