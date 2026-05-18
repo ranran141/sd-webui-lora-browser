@@ -669,6 +669,30 @@ let allFolders = [];
 let allCheckpoints = [];
 let allCpFolders = [];
 let currentMode = 'lora';
+
+const LORA_CTX = {
+  addFolderDrop: (el, p) => addFolderDrop(el, p),
+  allFolders: () => allFolders,
+  allItems: () => allLoras,
+  fmgrOrderKey: 'lora_fmgr_order',
+  createUrl: '/lora_browser/create_folder',
+  deleteUrl: '/lora_browser/delete_folder',
+  moveUrl: '/lora_browser/move_folder',
+  renameUrl: '/lora_browser/rename_folder',
+  reload: () => loadLoras(),
+};
+const CP_CTX = {
+  addFolderDrop: (el, p) => addCpFolderDrop(el, p),
+  allFolders: () => allCpFolders,
+  allItems: () => allCheckpoints,
+  fmgrOrderKey: 'lora_fmgr_order_cp',
+  createUrl: '/lora_browser/create_folder_cp',
+  deleteUrl: '/lora_browser/delete_folder_cp',
+  moveUrl: '/lora_browser/move_folder_cp',
+  renameUrl: '/lora_browser/rename_folder_cp',
+  reload: () => loadCheckpoints(),
+};
+let _fmgrCtx = LORA_CTX;
 let activeCat = null;
 let currentLora = null;
 let sortBy = 'path';
@@ -981,6 +1005,7 @@ function rebuildSidebarPreserveExpanded() {
 }
 function buildSidebar() {
   if (currentMode === 'checkpoint') { buildCpSidebar(); return; }
+  _fmgrCtx = LORA_CTX;
   const list = document.getElementById('cat-list');
   const showFavs = getSetting('show_favs', '1') === '1';
   const showRecent = getSetting('show_recent', '1') === '1';
@@ -1035,6 +1060,7 @@ function buildSidebar() {
 }
 
 function buildCpSidebar() {
+  _fmgrCtx = CP_CTX;
   const list = document.getElementById('cat-list');
   list.innerHTML = '';
   const showFavs = getSetting('show_favs', '1') === '1';
@@ -1054,27 +1080,40 @@ function buildCpSidebar() {
     list.appendChild(Object.assign(document.createElement('div'), { className: 'sidebar-divider' }));
   }
 
-  const allBtn = document.createElement('button');
-  allBtn.className = 'cat-btn active';
-  allBtn.id = 'all-sidebar-btn';
-  allBtn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">All</span></div>`;
-  allBtn.addEventListener('click', () => setCat('', allBtn));
-  addCpFolderDrop(allBtn, '');
-  list.appendChild(allBtn);
+  const allRow = document.createElement('div');
+  allRow.className = 'all-row';
+  allRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
 
-  const seen = new Set();
-  allCheckpoints.forEach(cp => {
-    const cat = cp.category;
-    if (!cat || seen.has(cat)) return;
-    seen.add(cat);
-    const btn = document.createElement('button');
-    btn.className = 'cat-btn';
-    const count = allCheckpoints.filter(c => c.category === cat).length;
-    btn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">${cat}</span><span class="cat-badge">${count}</span></div>`;
-    btn.addEventListener('click', () => setCat(cat, btn));
-    addCpFolderDrop(btn, cat);
-    list.appendChild(btn);
+  const allBtn = document.createElement('button');
+  allBtn.className = 'cat-btn';
+  allBtn.id = 'all-sidebar-btn';
+  allBtn.dataset.cat = '';
+  allBtn.style.flex = '1';
+  allBtn.innerHTML =
+    `<div class="cat-accent"></div>` +
+    `<div class="cat-inner">` +
+    `<span class="cat-label">All</span>` +
+    `</div>`;
+  allBtn.addEventListener('click', () => setCat('', allBtn));
+  allBtn.classList.add('active');
+  addCpFolderDrop(allBtn, '');
+
+  const allKebab = document.createElement('button');
+  allKebab.className = 'stree-kebab'; allKebab.textContent = '⋮'; allKebab.title = 'Options';
+  allKebab.addEventListener('click', e => {
+    e.stopPropagation();
+    openFmgrMenu(allKebab, [
+      { icon: '📁', label: 'New Folder', action: () => showFmgrCreate(allKebab, '') }
+    ]);
   });
+
+  allRow.appendChild(allBtn);
+  allRow.appendChild(allKebab);
+  list.appendChild(allRow);
+
+  loadFmgrOrder();
+  const tree = buildCpCatTree();
+  renderSidebarNode(tree, list, 0, '');
 }
 
 function buildCatTree() {
@@ -1096,6 +1135,39 @@ function buildCatTree() {
       node = node.dirs[part];
       node.count = (node.count || 0) + 1;
       if (i === parts.length - 1) node.directCount = (node.directCount || 0) + 1;
+    });
+  });
+  function setPaths(node, prefix) {
+    Object.entries(node.dirs).forEach(([name, child]) => {
+      child.path = prefix ? prefix + '/' + name : name;
+      setPaths(child, child.path);
+    });
+  }
+  setPaths(root, '');
+  return root;
+}
+
+function buildCpCatTree() {
+  const root = { dirs: {}, total: allCheckpoints.length };
+  allCpFolders.forEach(folder => {
+    const parts = folder.split('/').filter(Boolean);
+    let node = root;
+    parts.forEach(part => {
+      if (!node.dirs[part]) node.dirs[part] = { dirs: {}, count: 0, path: '' };
+      node = node.dirs[part];
+    });
+  });
+  allCheckpoints.forEach(cp => {
+    if (!cp.category) return;
+    const parts = cp.category.split('/').filter(Boolean);
+    let node = root;
+    parts.forEach((part, i) => {
+      if (!node.dirs[part]) node.dirs[part] = { dirs: {}, count: 0, directCount: 0, path: '' };
+      node = node.dirs[part];
+      node.count = (node.count || 0) + 1;
+      if (i === parts.length - 1) node.directCount = (node.directCount || 0) + 1;
+      const pathParts = cp.category.split('/').slice(0, i + 1);
+      node.path = pathParts.join('/');
     });
   });
   function setPaths(node, prefix) {
@@ -1189,14 +1261,14 @@ function showInlineCreateFolder(row, parentPath) {
 }
 async function createFolder(path) {
   try {
-    const res = await fetch('/lora_browser/create_folder', {
+    const res = await fetch(_fmgrCtx.createUrl, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({path})
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     showToast('Created: ' + path);
-    await loadLoras();
+    await _fmgrCtx.reload();
   } catch(e) { showToast('Error: ' + e.message); }
 }
 async function confirmDeleteFolder(folderPath) {
@@ -1459,7 +1531,7 @@ function renderSidebarNode(node, container, depth, parentPath) {
       }
     });
 
-    addFolderDrop(row, child.path);
+    _fmgrCtx.addFolderDrop(row, child.path);
     item.appendChild(row);
 
     if (hasChildren) {
@@ -2455,8 +2527,8 @@ async function installUpdate(version) {
 /* ── Folder Manager ── */
 let fmgrOrder = {};
 let fmgrDragPath = null;
-function loadFmgrOrder() { try { fmgrOrder = JSON.parse(localStorage.getItem('lora_fmgr_order') || '{}'); } catch { fmgrOrder = {}; } }
-function saveFmgrOrder() { localStorage.setItem('lora_fmgr_order', JSON.stringify(fmgrOrder)); }
+function loadFmgrOrder() { try { fmgrOrder = JSON.parse(localStorage.getItem(_fmgrCtx.fmgrOrderKey) || '{}'); } catch { fmgrOrder = {}; } }
+function saveFmgrOrder() { localStorage.setItem(_fmgrCtx.fmgrOrderKey, JSON.stringify(fmgrOrder)); }
 function getFmgrSortedKeys(children, parentPath) {
   const names = Object.keys(children);
   const order = (fmgrOrder[parentPath] || []).filter(n => !n.startsWith('__sep__'));
@@ -2497,7 +2569,7 @@ function clearSidebarDragState() {
 }
 async function moveFolderTo(folderPath, newParent) {
   try {
-    const res = await fetch('/lora_browser/move_folder', {
+    const res = await fetch(_fmgrCtx.moveUrl, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({folder_path: folderPath, new_parent: newParent})
     });
@@ -2508,13 +2580,13 @@ async function moveFolderTo(folderPath, newParent) {
     if (!fmgrOrder[newParent]) fmgrOrder[newParent] = [];
     if (!fmgrOrder[newParent].includes(folderName)) fmgrOrder[newParent].unshift(folderName);
     saveFmgrOrder();
-    await loadLoras();
+    await _fmgrCtx.reload();
     return true;
   } catch { showToast('Move failed'); return false; }
 }
 function reorderFmgr(parentPath, draggedName, targetName, before) {
   const directChildren = {};
-  allFolders.forEach(p => {
+  _fmgrCtx.allFolders().forEach(p => {
     if (parentPath === '') {
       if (!p.includes('/')) directChildren[p] = true;
     } else {
@@ -2597,14 +2669,14 @@ function startSidebarRename(row, nameEl, folderPath) {
     const newName = inp.value.trim();
     if (!newName || newName === folderPath.split('/').pop()) { cancel(); return; }
     try {
-      const res = await fetch('/lora_browser/rename_folder', {
+      const res = await fetch(_fmgrCtx.renameUrl, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({old_path: folderPath, new_name: newName})
       });
       const data = await res.json();
       if (!res.ok) { showToast('Error: ' + (data.error || 'Failed')); cancel(); return; }
       showToast('Renamed');
-      await loadLoras();
+      await _fmgrCtx.reload();
     } catch(e) { showToast('Error: ' + e.message); cancel(); }
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); });
@@ -2612,17 +2684,17 @@ function startSidebarRename(row, nameEl, folderPath) {
 }
 async function deleteFolderFromMgr(folderPath) {
   const counts = {};
-  allLoras.forEach(l => { if (l.category) counts[l.category] = (counts[l.category] || 0) + 1; });
+  _fmgrCtx.allItems().forEach(l => { if (l.category) counts[l.category] = (counts[l.category] || 0) + 1; });
   if (counts[folderPath] > 0) { showToast('Folder is not empty'); return; }
   if (!confirm('Delete folder "' + folderPath + '"?')) return;
   try {
-    const res = await fetch('/lora_browser/delete_folder', {
+    const res = await fetch(_fmgrCtx.deleteUrl, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({path: folderPath})
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
     showToast('Deleted: ' + folderPath);
-    await loadLoras();
+    await _fmgrCtx.reload();
   } catch(e) { showToast('Error: ' + e.message); }
 }
 
@@ -3324,6 +3396,103 @@ def _register_api(_, app: FastAPI):
         old_full = lora_dir / old_path
         try:
             old_full.resolve().relative_to(lora_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not old_full.exists() or not old_full.is_dir():
+            return JSONResponse(status_code=404, content={"error": "Folder not found"})
+        new_full = old_full.parent / new_name
+        if new_full.exists():
+            return JSONResponse(status_code=400, content={"error": "Name already exists"})
+        old_full.rename(new_full)
+        parent = "/".join(old_path.split("/")[:-1])
+        new_path = (parent + "/" + new_name).lstrip("/")
+        return JSONResponse(content={"ok": True, "new_path": new_path})
+
+    @app.post("/lora_browser/create_folder_cp")
+    async def create_folder_cp(request: Request):
+        data = await request.json()
+        folder_path = data.get("path", "").strip()
+        if not folder_path or ".." in folder_path:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        cp_dir = _get_checkpoint_dir()
+        target = cp_dir / folder_path
+        try:
+            target.resolve().relative_to(cp_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        target.mkdir(parents=True, exist_ok=True)
+        return JSONResponse(content={"ok": True})
+
+    @app.post("/lora_browser/delete_folder_cp")
+    async def delete_folder_cp(request: Request):
+        data = await request.json()
+        folder_path = data.get("path", "").strip()
+        if not folder_path or ".." in folder_path:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        cp_dir = _get_checkpoint_dir()
+        target = cp_dir / folder_path
+        try:
+            target.resolve().relative_to(cp_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not target.exists() or not target.is_dir():
+            return JSONResponse(status_code=404, content={"error": "Folder not found"})
+        sf_files = list(target.rglob("*.safetensors"))
+        if sf_files:
+            return JSONResponse(status_code=400, content={"error": f"Folder contains {len(sf_files)} checkpoint(s). Move them first."})
+        import shutil as _shutil
+        _shutil.rmtree(str(target))
+        return JSONResponse(content={"ok": True})
+
+    @app.post("/lora_browser/move_folder_cp")
+    async def move_folder_cp(request: Request):
+        data = await request.json()
+        folder_path = data.get("folder_path", "").strip()
+        new_parent = data.get("new_parent", "").strip()
+        if not folder_path or ".." in folder_path or ".." in new_parent:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        cp_dir = _get_checkpoint_dir()
+        old_full = cp_dir / folder_path
+        try:
+            old_full.resolve().relative_to(cp_dir.resolve())
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not old_full.exists() or not old_full.is_dir():
+            return JSONResponse(status_code=404, content={"error": "Folder not found"})
+        folder_name = old_full.name
+        if new_parent:
+            new_parent_full = cp_dir / new_parent
+            try:
+                new_parent_full.resolve().relative_to(cp_dir.resolve())
+            except ValueError:
+                return JSONResponse(status_code=400, content={"error": "Invalid target"})
+            try:
+                new_parent_full.resolve().relative_to(old_full.resolve())
+                return JSONResponse(status_code=400, content={"error": "Cannot move into own subtree"})
+            except ValueError:
+                pass
+            new_full = new_parent_full / folder_name
+        else:
+            new_full = cp_dir / folder_name
+        if new_full.resolve() == old_full.resolve():
+            return JSONResponse(content={"ok": True, "new_path": folder_path})
+        if new_full.exists():
+            return JSONResponse(status_code=400, content={"error": "A folder with this name already exists at target"})
+        old_full.rename(new_full)
+        new_path = (new_parent + "/" + folder_name).lstrip("/") if new_parent else folder_name
+        return JSONResponse(content={"ok": True, "new_path": new_path})
+
+    @app.post("/lora_browser/rename_folder_cp")
+    async def rename_folder_cp(request: Request):
+        data = await request.json()
+        old_path = data.get("old_path", "").strip()
+        new_name = data.get("new_name", "").strip()
+        if not old_path or not new_name or ".." in old_path or any(c in new_name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid"})
+        cp_dir = _get_checkpoint_dir()
+        old_full = cp_dir / old_path
+        try:
+            old_full.resolve().relative_to(cp_dir.resolve())
         except ValueError:
             return JSONResponse(status_code=400, content={"error": "Invalid path"})
         if not old_full.exists() or not old_full.is_dir():
