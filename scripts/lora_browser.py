@@ -551,7 +551,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       <input id="settings-lora-dir" class="settings-input" type="text"
         placeholder="Leave blank to use WebUI default"
         onblur="autoSaveLoraDirSetting()">
-      <div class="settings-hint">Leave blank to use the WebUI default path. Reload required after change.</div>
     </div>
     <div class="settings-row">
       <div class="settings-label">civitai API Key</div>
@@ -588,7 +587,7 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
     <div class="settings-row" style="margin-top:8px">
       <div class="settings-label">Version</div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span id="update-current" style="font-size:13px;color:var(--txt3)">v1.3.0</span>
+        <span id="update-current" style="font-size:14px;color:var(--txt3)">v1.3.0</span>
         <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
         <span id="update-result" style="font-size:13px"></span>
       </div>
