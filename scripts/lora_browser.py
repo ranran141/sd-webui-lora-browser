@@ -603,10 +603,12 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
     </div>
     <div class="settings-row" style="margin-top:8px">
       <div class="settings-label">Version</div>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:6px">
         <span id="update-current" style="font-size:14px;color:var(--txt3)">v1.4.0</span>
-        <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
-        <span id="update-result" style="font-size:13px"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
+          <span id="update-result" style="font-size:13px"></span>
+        </div>
       </div>
     </div>
   </div>
