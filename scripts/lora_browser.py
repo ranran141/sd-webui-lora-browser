@@ -2300,16 +2300,38 @@ async function checkUpdate() {
     if (!res.ok) throw new Error('fetch failed');
     const latest = (await res.text()).trim();
     if (latest === CURRENT) {
-      result.textContent = 'Up to date';
-      result.style.color = '#22c55e';
+      result.innerHTML = '<span style="color:#22c55e">Up to date</span>';
     } else {
-      result.innerHTML = `<a href="https://github.com/ranran141/sd-webui-lora-browser" target="_blank" rel="noopener" style="color:#f59e0b">v${latest} available</a>`;
+      result.innerHTML =
+        `<span style="color:#f59e0b;margin-right:8px">v${latest} available</span>` +
+        `<button class="modal-action-btn fetch-btn" id="btn-install-update" style="padding:4px 12px;font-size:12px" onclick="installUpdate('${latest}')">Install</button>`;
     }
   } catch(e) {
-    result.textContent = 'Failed to check';
-    result.style.color = '#ef4444';
+    result.innerHTML = '<span style="color:#ef4444">Failed to check</span>';
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function installUpdate(version) {
+  const btn = document.getElementById('btn-install-update');
+  const result = document.getElementById('update-result');
+  btn.disabled = true;
+  btn.textContent = 'Installing...';
+  try {
+    const res = await fetch('/lora_browser/install_update', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      result.innerHTML = '<span style="color:#22c55e">✓ Installed v' + version + ' — please restart WebUI</span>';
+    } else {
+      result.innerHTML = '<span style="color:#ef4444">Error: ' + esc(data.error || 'unknown') + '</span>';
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    }
+  } catch(e) {
+    result.innerHTML = '<span style="color:#ef4444">Error: ' + esc(e.message) + '</span>';
+    btn.disabled = false;
+    btn.textContent = 'Retry';
   }
 }
 /* ── Folder Manager ── */
@@ -3795,6 +3817,24 @@ def _register_api(_, app: FastAPI):
             return JSONResponse(status_code=404, content={"error": "Not found"})
         no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
         return FileResponse(str(safe), headers=no_cache)
+
+    @app.post("/lora_browser/install_update")
+    def install_update():
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "pull"],
+                cwd=str(EXTENSION_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                return JSONResponse(content={"ok": True, "output": result.stdout.strip()})
+            else:
+                return JSONResponse(status_code=500, content={"error": result.stderr.strip() or result.stdout.strip()})
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": str(e)})
 
     @app.get("/lora_browser/config")
     def get_config():
