@@ -772,7 +772,9 @@ function makeCpCard(cp) {
 function openCpModal(cp) {
   document.getElementById('modal-model-name').innerHTML = `<span>${esc(cp.model_name || cp.name)}</span>`;
 
-  document.getElementById('btn-fetch-civitai').style.display = 'none';
+  const fetchBtn = document.getElementById('btn-fetch-civitai');
+  fetchBtn.style.display = '';
+  fetchBtn.onclick = () => fetchCivitaiCp(cp);
   const delBtn = document.querySelector('#modal-actions .delete-btn');
   delBtn.style.display = '';
   delBtn.onclick = () => deleteCp(cp);
@@ -1671,7 +1673,9 @@ function openModal(lora) {
     `<span>${esc(lora.model_name)}</span>` +
     `<button class="icon-action-btn" onclick="startRename()" title="Rename display name" style="flex-shrink:0">${SVG_PENCIL}</button>`;
 
-  document.getElementById('btn-fetch-civitai').style.display = '';
+  const fetchBtn = document.getElementById('btn-fetch-civitai');
+  fetchBtn.style.display = '';
+  fetchBtn.onclick = fetchCivitai;
   const delBtn = document.querySelector('#modal-actions .delete-btn');
   delBtn.style.display = '';
   delBtn.onclick = deleteLora;
@@ -2111,6 +2115,33 @@ async function deleteLora() {
     showToast('Deleted: ' + modelName);
   } catch(e) {
     showToast('Error: ' + e.message);
+  }
+}
+
+async function fetchCivitaiCp(cp) {
+  const btn = document.getElementById('btn-fetch-civitai');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  try {
+    const res = await fetch('/lora_browser/fetch_civitai_cp', {
+      method: 'POST',
+      headers: getCivitaiHeaders(),
+      body: JSON.stringify({name: cp.name, force: true, dl_preview: true})
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showToast('Error: ' + (data.error || 'Unknown'));
+      return;
+    }
+    showToast('Fetched: ' + (data.model_name || cp.name));
+    await loadCheckpoints();
+    const updated = allCheckpoints.find(c => c.name === cp.name);
+    if (updated) openCpModal(updated);
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '⏳ Fetching...') btn.textContent = '🔄 Fetch';
   }
 }
 
