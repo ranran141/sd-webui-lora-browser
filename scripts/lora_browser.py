@@ -350,6 +350,10 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 .file-info-path { color: var(--txt3); font-size: 11px; }
 #modal-info-col { flex: 1; overflow-y: auto; padding: 16px 20px; }
 .info-section { margin-bottom: 16px; }
+.creator-row { display:flex; align-items:center; gap:8px; text-decoration:none; margin-bottom:12px; }
+.creator-row:hover .creator-username { text-decoration:underline; }
+.creator-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+.creator-username { font-size:14px; color:var(--pri); font-weight:500; }
 .info-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5px;
   text-transform: uppercase; color: var(--txt); margin-bottom: 4px; }
 .info-label-hint { display: block; font-size: 12px; color: var(--txt4); font-weight: 400;
@@ -1503,8 +1507,15 @@ function openModal(lora) {
     `</div>` +
     trainedWordsHtml +
     `<div class="info-section">` +
+    ((lora.creator && lora.creator.username)
+      ? `<div class="info-label">Creator</div>` +
+        `<a class="creator-row" href="https://civitai.com/user/${esc(lora.creator.username)}" target="_blank" rel="noopener" style="margin-bottom:12px">` +
+        (lora.creator.image ? `<img class="creator-avatar" src="${esc(lora.creator.image)}" onerror="this.style.display='none'">` : '') +
+        `<span class="creator-username">${esc(lora.creator.username)}</span>` +
+        `</a>`
+      : '') +
     (lora.base_model ?
-      `<div class="info-label">Model</div>` +
+      `<div class="info-label">Base Model</div>` +
       `<div class="pvi-value" style="margin-bottom:12px;font-size:14px">${esc(lora.base_model)}</div>` : '') +
     `<div class="info-label" style="margin-bottom:4px">File Name</div>` +
     `<div id="filename-view" style="display:flex;align-items:center;gap:6px;margin-bottom:8px">` +
@@ -2647,12 +2658,14 @@ def _scan_loras():
 
         meta_path = path.parent / (name + ".metadata.json")
         info_path = path.parent / (name + ".civitai.info")
+        creator = {}
         if meta_path.exists():
             try:
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
                 model_name = mdata.get("model_name", name)
                 tags = mdata.get("tags", [])
                 base_model = mdata.get("base_model", "")
+                creator = mdata.get("creator") or {}
                 if not preview_rel:
                     purl = mdata.get("preview_url", "")
                     if purl:
@@ -2711,6 +2724,7 @@ def _scan_loras():
             "trained_words": trained_words,
             "sample_images": sample_images,
             "civitai_html": civitai_html,
+            "creator": creator,
         })
 
     return loras
@@ -3132,31 +3146,33 @@ def _register_api(_, app: FastAPI):
         model_info = ver_data.get("model") or {}
         images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
 
-        # model-versions/by-hash often omits model.description and tags; fetch separately
+        # model-versions/by-hash often omits model.description, tags, and creator; fetch separately
         model_description = model_info.get("description") or ""
         model_tags = model_info.get("tags") or []
-        if not model_description or not model_tags:
-            model_id = ver_data.get("modelId")
-            if model_id:
-                try:
-                    mreq = _urlreq.Request(
-                        f"https://civitai.com/api/v1/models/{model_id}",
-                        headers=_civitai_headers()
-                    )
-                    with _urlreq.urlopen(mreq, timeout=20) as resp:
-                        mdata = json.loads(resp.read().decode("utf-8"))
-                    if not model_description:
-                        model_description = mdata.get("description") or ""
-                    if not model_tags:
-                        model_tags = mdata.get("tags") or []
-                except Exception:
-                    pass
+        creator = {}
+        model_id = ver_data.get("modelId")
+        if model_id:
+            try:
+                mreq = _urlreq.Request(
+                    f"https://civitai.com/api/v1/models/{model_id}",
+                    headers=_civitai_headers()
+                )
+                with _urlreq.urlopen(mreq, timeout=20) as resp:
+                    mdata = json.loads(resp.read().decode("utf-8"))
+                if not model_description:
+                    model_description = mdata.get("description") or ""
+                if not model_tags:
+                    model_tags = mdata.get("tags") or []
+                creator = mdata.get("creator") or {}
+            except Exception:
+                pass
 
         metadata = {
             "model_name": model_info.get("name") or name,
             "tags": model_tags,
             "base_model": ver_data.get("baseModel") or "",
             "preview_url": "",
+            "creator": creator,
             "civitai": {
                 "modelId": ver_data.get("modelId"),
                 "id": ver_data.get("id"),
