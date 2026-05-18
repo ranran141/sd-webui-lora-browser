@@ -10,6 +10,7 @@ try:
 except Exception:
     WEBUI_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LORA_DIR = WEBUI_ROOT / "models" / "Lora"
+CP_DIR = WEBUI_ROOT / "models" / "Stable-diffusion"
 EXTENSION_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = EXTENSION_ROOT / "config.json"
 
@@ -108,6 +109,12 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   border-right: 1px solid var(--bd); display: flex; flex-direction: column;
   overflow: hidden; transition: width 0.2s, opacity 0.2s; }
 #sidebar.hidden { width: 0; opacity: 0; pointer-events: none; }
+#mode-switcher { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--bd); }
+.mode-tab { flex: 1; height: 32px; background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--txt3); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.mode-tab:hover { color: var(--txt); background: var(--pri-bg); }
+.mode-tab.active { color: var(--acc); border-bottom-color: var(--pri); background: var(--pri-bg); }
 #sidebar-title { padding: 10px 14px 8px; font-size: 11px; font-weight: 700;
   letter-spacing: 1px; color: var(--txt4); text-transform: uppercase;
   border-bottom: 1px solid var(--bd); flex-shrink: 0; white-space: nowrap; }
@@ -510,6 +517,10 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 <!-- Layout -->
 <div id="layout">
   <div id="sidebar">
+    <div id="mode-switcher">
+      <button class="mode-tab active" id="mode-tab-lora" onclick="setMode('lora')">LoRA</button>
+      <button class="mode-tab" id="mode-tab-cp" onclick="setMode('checkpoint')">CP</button>
+    </div>
     <div id="cat-list"></div>
   </div>
   <div id="main">
@@ -530,7 +541,7 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       </div>
       <div style="flex:1"></div>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
-      <button id="refresh-btn" class="hdr-btn" onclick="loadLoras()" title="Refresh">⟳</button>
+      <button id="refresh-btn" class="hdr-btn" onclick="reload()" title="Refresh">⟳</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
     <div id="content">
@@ -551,6 +562,12 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       <input id="settings-lora-dir" class="settings-input" type="text"
         placeholder="Leave blank to use WebUI default"
         onblur="autoSaveLoraDirSetting()">
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">Checkpoint Folder Path</div>
+      <input id="settings-cp-dir" class="settings-input" type="text"
+        placeholder="Leave blank to use Neo default"
+        onblur="autoSaveCpDirSetting()">
     </div>
     <div class="settings-row">
       <div class="settings-label">civitai API Key</div>
@@ -587,7 +604,7 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
     <div class="settings-row" style="margin-top:8px">
       <div class="settings-label">Version</div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span id="update-current" style="font-size:14px;color:var(--txt3)">v1.3.0</span>
+        <span id="update-current" style="font-size:14px;color:var(--txt3)">v1.4.0</span>
         <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
         <span id="update-result" style="font-size:13px"></span>
       </div>
@@ -647,6 +664,9 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 <script>
 let allLoras = [];
 let allFolders = [];
+let allCheckpoints = [];
+let allCpFolders = [];
+let currentMode = 'lora';
 let activeCat = null;
 let currentLora = null;
 let sortBy = 'path';
@@ -665,6 +685,131 @@ function getSetting(key, def) {
 }
 function setSetting(key, val) {
   localStorage.setItem('lora_cfg_' + key, val);
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  setSetting('mode', mode);
+  document.getElementById('mode-tab-lora').classList.toggle('active', mode === 'lora');
+  document.getElementById('mode-tab-cp').classList.toggle('active', mode === 'checkpoint');
+  activeCat = null;
+  reload();
+}
+
+function reload() {
+  if (currentMode === 'checkpoint') loadCheckpoints();
+  else loadLoras();
+}
+
+async function loadCheckpoints() {
+  clearSelection();
+  previewVer = Date.now();
+  try {
+    const res = await fetch('/lora_browser/list_checkpoints', {cache: 'no-store'});
+    const data = await res.json();
+    allCheckpoints = data.checkpoints || [];
+    allCpFolders = data.folders || [];
+    const count = document.getElementById('count');
+    if (count) count.textContent = allCheckpoints.length + ' checkpoints';
+    buildCpSections();
+    rebuildSidebar();
+  } catch(e) {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.textContent = 'Failed to load: ' + e.message;
+  }
+}
+
+function buildCpSections() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+  const filtered = allCheckpoints.filter(cp => {
+    if (activeCat !== null && cp.category !== activeCat) return false;
+    const q = document.getElementById('search').value.toLowerCase();
+    if (q && !cp.name.toLowerCase().includes(q) && !cp.category.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!filtered.length) { content.innerHTML = '<div style="color:var(--txt4);padding:20px">No checkpoints found.</div>'; return; }
+  const grid = document.createElement('div');
+  grid.className = 'section-grid';
+  filtered.forEach(cp => grid.appendChild(makeCpCard(cp)));
+  content.appendChild(grid);
+}
+
+function makeCpCard(cp) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const imgHtml = cp.preview
+    ? `<img class="card-img" src="/lora_browser/preview_cp?path=${encodeURIComponent(cp.preview)}&_v=${previewVer}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+  const placeholderStyle = cp.preview ? 'display:none' : '';
+  card.innerHTML =
+    imgHtml +
+    `<div class="card-placeholder" style="${placeholderStyle}">🗂️</div>` +
+    `<div class="card-top">` +
+    `<span></span>` +
+    `<div class="card-action-btns"></div>` +
+    `</div>` +
+    `<div class="card-bottom">` +
+    `<div class="card-name">${esc(cp.name)}</div>` +
+    `</div>`;
+  card.addEventListener('click', () => openCpModal(cp));
+  return card;
+}
+
+function openCpModal(cp) {
+  document.getElementById('modal-model-name').innerHTML = `<span>${esc(cp.model_name || cp.name)}</span>`;
+
+  document.getElementById('btn-fetch-civitai').style.display = 'none';
+  document.querySelector('#modal-actions .delete-btn').style.display = 'none';
+
+  const civBtn = document.getElementById('btn-civitai');
+  if (cp.civitai_model_id) {
+    civBtn.style.display = '';
+    civBtn.dataset.modelId = cp.civitai_model_id;
+    civBtn.dataset.versionId = cp.civitai_version_id || '';
+  } else {
+    civBtn.style.display = 'none';
+  }
+
+  const creatorBtn = document.getElementById('btn-creator');
+  if (cp.creator && cp.creator.username) {
+    creatorBtn.style.display = '';
+    creatorBtn.href = `https://civitai.com/user/${encodeURIComponent(cp.creator.username)}`;
+    const avatarImg = document.getElementById('creator-avatar-img');
+    if (cp.creator.image) { avatarImg.src = cp.creator.image; avatarImg.style.display = ''; }
+    else { avatarImg.style.display = 'none'; }
+    document.getElementById('creator-username-text').textContent = cp.creator.username;
+  } else {
+    creatorBtn.style.display = 'none';
+  }
+
+  const previewCol = document.getElementById('modal-preview-col');
+  const imgPart = cp.preview
+    ? `<div id="preview-img-wrap">` +
+      `<img id="modal-preview-img" src="/lora_browser/preview_cp?path=${encodeURIComponent(cp.preview)}&_v=${previewVer}" onerror="this.style.display='none'">` +
+      `</div>`
+    : `<div id="preview-img-wrap" style="min-height:80px;display:flex;align-items:center;justify-content:center">` +
+      `<div class="placeholder">🗂️</div>` +
+      `</div>`;
+  previewCol.innerHTML = imgPart + `<div id="modal-preview-info"></div>`;
+
+  document.getElementById('modal-info-col').innerHTML =
+    `<div class="info-section">` +
+    (cp.base_model
+      ? `<div class="info-label">Base Model</div>` +
+        `<div class="pvi-value" style="margin-bottom:12px;font-size:14px">${esc(cp.base_model)}</div>` : '') +
+    `<div class="info-label" style="margin-bottom:4px">File Name</div>` +
+    `<div style="font-size:14px;color:var(--txt3);word-break:break-all;line-height:1.4;margin-bottom:12px">${esc(cp.name)}.safetensors</div>` +
+    (cp.file_path
+      ? `<div class="info-label" style="margin-bottom:4px">Path</div>` +
+        `<div style="display:flex;align-items:flex-start;gap:6px">` +
+        `<div style="flex:1;font-size:14px;color:var(--txt3);word-break:break-all;line-height:1.4">${esc(cp.file_path)}</div>` +
+        `<button class="icon-action-btn" onclick="fetch('/lora_browser/open_folder_cp?file='+encodeURIComponent('${esc(cp.file)}'))" title="Open folder">${SVG_FOLDER}</button></div>`
+      : '') +
+    `</div>`;
+
+  document.getElementById('modal-overlay').style.display = 'flex';
+  document.addEventListener('keydown', onModalKey);
 }
 
 function initSettings() {
@@ -810,6 +955,7 @@ function rebuildSidebarPreserveExpanded() {
   restoreExpandedPaths(expanded);
 }
 function buildSidebar() {
+  if (currentMode === 'checkpoint') { buildCpSidebar(); return; }
   const list = document.getElementById('cat-list');
   const showFavs = getSetting('show_favs', '1') === '1';
   const showRecent = getSetting('show_recent', '1') === '1';
@@ -861,6 +1007,34 @@ function buildSidebar() {
   loadFmgrOrder();
   const tree = buildCatTree();
   renderSidebarNode(tree, list, 0, '');
+}
+
+function buildCpSidebar() {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.className = 'cat-btn active';
+  allBtn.id = 'all-sidebar-btn';
+  allBtn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">All</span></div>`;
+  allBtn.addEventListener('click', () => { activeCat = null; allBtn.classList.add('active'); buildCpSections(); });
+  list.appendChild(allBtn);
+  const seen = new Set();
+  allCheckpoints.forEach(cp => {
+    const cat = cp.category;
+    if (!cat || seen.has(cat)) return;
+    seen.add(cat);
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn';
+    const count = allCheckpoints.filter(c => c.category === cat).length;
+    btn.innerHTML = `<div class="cat-accent"></div><div class="cat-inner"><span class="cat-label">${cat}</span><span class="cat-badge">${count}</span></div>`;
+    btn.addEventListener('click', () => {
+      list.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeCat = cat;
+      buildCpSections();
+    });
+    list.appendChild(btn);
+  });
 }
 
 function buildCatTree() {
@@ -1354,6 +1528,7 @@ async function moveSelectedLoras(targetFolder) {
 function onSearch() { applyFilter(); }
 
 function applyFilter() {
+  if (currentMode === 'checkpoint') { buildCpSections(); return; }
   const q = document.getElementById('search').value.toLowerCase();
   const favs = getFavs();
   const recent = getRecent();
@@ -1466,6 +1641,9 @@ function openModal(lora) {
   document.getElementById('modal-model-name').innerHTML =
     `<span>${esc(lora.model_name)}</span>` +
     `<button class="icon-action-btn" onclick="startRename()" title="Rename display name" style="flex-shrink:0">${SVG_PENCIL}</button>`;
+
+  document.getElementById('btn-fetch-civitai').style.display = '';
+  document.querySelector('#modal-actions .delete-btn').style.display = '';
 
   const civBtn = document.getElementById('btn-civitai');
   if (lora.civitai_model_id) {
@@ -1992,7 +2170,7 @@ async function startBulkFetch() {
     document.getElementById('bulk-fetch-status').textContent = 'Loading LoRA list...';
     const res = await fetch('/lora_browser/civitai_missing');
     const data = await res.json();
-    const missing = (data.loras || []).filter(l => !l.has_meta);
+    const missing = (data.loras || []).filter(l => !l.has_meta || !l.has_creator);
     const total = missing.length;
     if (total === 0) {
       document.getElementById('bulk-fetch-status').textContent = 'All LoRAs already have metadata';
@@ -2007,7 +2185,7 @@ async function startBulkFetch() {
         const r = await fetch('/lora_browser/fetch_civitai', {
           method: 'POST',
           headers: getCivitaiHeaders(),
-          body: JSON.stringify({name: lora.name, force: false, dl_preview: true})
+          body: JSON.stringify({name: lora.name, force: !lora.has_meta || !lora.has_creator, dl_preview: !lora.has_meta})
         });
         const d = await r.json();
         if (d.ok && !d.skipped) found++;
@@ -2018,8 +2196,39 @@ async function startBulkFetch() {
       document.getElementById('bulk-fetch-result').textContent =
         done + ' / ' + total + ' processed (fetched: ' + found + '  not found: ' + notFound + ')';
     }
+    document.getElementById('bulk-fetch-status').textContent = bulkFetchAbort ? 'Stopped' : 'Processing checkpoints...';
+
+    if (!bulkFetchAbort) {
+      const cpRes = await fetch('/lora_browser/cp_missing');
+      const cpData = await cpRes.json();
+      const missingCp = (cpData.checkpoints || []).filter(c => !c.has_meta || !c.has_creator);
+      const cpTotal = missingCp.length;
+      if (cpTotal > 0) {
+        let cpDone = 0, cpFound = 0, cpNotFound = 0;
+        for (const cp of missingCp) {
+          if (bulkFetchAbort) break;
+          document.getElementById('bulk-fetch-status').textContent = '[CP] ' + cp.name;
+          try {
+            const r = await fetch('/lora_browser/fetch_civitai_cp', {
+              method: 'POST',
+              headers: getCivitaiHeaders(),
+              body: JSON.stringify({name: cp.name, force: !cp.has_meta || !cp.has_creator, dl_preview: !cp.has_meta})
+            });
+            const d = await r.json();
+            if (d.ok && !d.skipped) cpFound++;
+            else if (!d.ok) cpNotFound++;
+          } catch(e) { cpNotFound++; }
+          cpDone++;
+          document.getElementById('bulk-fetch-bar').style.width = (cpDone / cpTotal * 100) + '%';
+          document.getElementById('bulk-fetch-result').textContent =
+            '[CP] ' + cpDone + ' / ' + cpTotal + ' processed (fetched: ' + cpFound + '  not found: ' + cpNotFound + ')';
+        }
+      }
+    }
+
     document.getElementById('bulk-fetch-status').textContent = bulkFetchAbort ? 'Stopped' : 'Done';
     await loadLoras();
+    if (currentMode === 'checkpoint') loadCheckpoints();
   } catch(e) {
     document.getElementById('bulk-fetch-status').textContent = 'Error: ' + e.message;
   } finally {
@@ -2037,6 +2246,7 @@ async function openSettings() {
     const res = await fetch('/lora_browser/config');
     const cfg = await res.json();
     document.getElementById('settings-lora-dir').value = cfg.lora_dir || '';
+    document.getElementById('settings-cp-dir').value = cfg.checkpoint_dir || '';
     document.getElementById('settings-civitai-key').value = cfg.civitai_api_key || '';
   } catch(e) {}
   document.getElementById('settings-overlay').style.display = 'flex';
@@ -2063,13 +2273,22 @@ async function autoSaveLoraDirSetting() {
   showToast('Saved');
   await loadLoras();
 }
+async function autoSaveCpDirSetting() {
+  const cpDir = document.getElementById('settings-cp-dir').value.trim();
+  await fetch('/lora_browser/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({checkpoint_dir: cpDir})
+  });
+  showToast('Saved');
+  if (currentMode === 'checkpoint') await loadCheckpoints();
+}
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
 }
 async function checkUpdate() {
   const btn = document.getElementById('btn-check-update');
   const result = document.getElementById('update-result');
-  const CURRENT = '1.3.0';
+  const CURRENT = '1.4.0';
   btn.disabled = true;
   result.textContent = 'Checking...';
   result.style.color = 'var(--txt3)';
@@ -2584,7 +2803,15 @@ sortDir = getSetting('sort_dir', 'asc');
   if (dirBtn) dirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
 })();
 fetch('/lora_browser/config').then(r => r.json()).then(cfg => { _civitaiApiKey = cfg.civitai_api_key || ''; }).catch(() => {});
-loadLoras().then(initSettings);
+const _savedMode = getSetting('mode', 'lora');
+if (_savedMode === 'checkpoint') {
+  currentMode = 'checkpoint';
+  document.getElementById('mode-tab-lora').classList.remove('active');
+  document.getElementById('mode-tab-cp').classList.add('active');
+  loadCheckpoints().then(initSettings);
+} else {
+  loadLoras().then(initSettings);
+}
 </script>
 </body>
 </html>"""
@@ -2622,6 +2849,78 @@ def _get_lora_dir():
     except Exception:
         pass
     return LORA_DIR
+
+
+def _get_checkpoint_dir():
+    cfg = _load_config()
+    if cfg.get("checkpoint_dir"):
+        p = Path(cfg["checkpoint_dir"])
+        if p.exists():
+            return p
+    return CP_DIR
+
+
+def _scan_checkpoints():
+    cp_dir = _get_checkpoint_dir()
+    checkpoints = []
+    if not cp_dir.exists():
+        return checkpoints
+    for path in sorted(cp_dir.rglob("*.safetensors")):
+        name = path.stem
+        rel = path.relative_to(cp_dir)
+        category = rel.parent.as_posix() if rel.parent.as_posix() != '.' else ''
+        preview_rel = None
+        for pext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp",
+                     ".png", ".jpg", ".jpeg", ".webp"]:
+            ppath = path.parent / (name + pext)
+            if ppath.exists():
+                preview_rel = ppath.relative_to(cp_dir).as_posix()
+                break
+
+        model_name = name
+        base_model = ""
+        creator = {}
+        civitai_model_id = 0
+        civitai_version_id = 0
+
+        meta_path = path.parent / (name + ".metadata.json")
+        info_path = path.parent / (name + ".civitai.info")
+        if meta_path.exists():
+            try:
+                mdata = json.loads(meta_path.read_text(encoding="utf-8"))
+                model_name = mdata.get("model_name") or name
+                base_model = mdata.get("base_model") or ""
+                creator = mdata.get("creator") or {}
+                civitai = mdata.get("civitai") or {}
+                civitai_model_id = int(civitai.get("modelId") or 0)
+                civitai_version_id = int(civitai.get("id") or 0)
+            except Exception:
+                pass
+        elif info_path.exists():
+            try:
+                idata = json.loads(info_path.read_text(encoding="utf-8"))
+                minfo = idata.get("model") or {}
+                model_name = minfo.get("name") or name
+                base_model = idata.get("baseModel") or ""
+                creator = minfo.get("creator") or idata.get("creator") or {}
+                civitai_model_id = int(idata.get("modelId") or 0)
+                civitai_version_id = int(idata.get("id") or 0)
+            except Exception:
+                pass
+
+        checkpoints.append({
+            "name": name,
+            "model_name": model_name,
+            "file": rel.as_posix(),
+            "file_path": str(path),
+            "category": category,
+            "preview": preview_rel,
+            "base_model": base_model,
+            "creator": creator,
+            "civitai_model_id": civitai_model_id,
+            "civitai_version_id": civitai_version_id,
+        })
+    return checkpoints
 
 
 def _scan_loras():
@@ -2741,6 +3040,7 @@ def _scan_loras():
                 raw_desc = minfo.get("description") or idata.get("description") or ""
                 civitai_html = _sanitize_html(raw_desc)
                 sample_images = _parse_images(idata.get("images"))
+                creator = minfo.get("creator") or idata.get("creator") or {}
             except Exception:
                 pass
 
@@ -2776,6 +3076,7 @@ def _scan_loras():
 
 def _register_api(_, app: FastAPI):
     lora_dir_resolved = _get_lora_dir().resolve()
+    cp_dir_resolved = _get_checkpoint_dir().resolve()
 
     @app.get("/lora_browser/ui", response_class=HTMLResponse)
     def ui():
@@ -3076,6 +3377,21 @@ def _register_api(_, app: FastAPI):
             return JSONResponse(content={"ok": True})
         return JSONResponse(status_code=404, content={"error": "Not found"})
 
+    @app.get("/lora_browser/open_folder_cp")
+    def open_folder_cp(file: str):
+        cp_dir = _get_checkpoint_dir().resolve()
+        try:
+            target = (cp_dir / file).resolve()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "Invalid path"})
+        if not str(target).startswith(str(cp_dir)):
+            return JSONResponse(status_code=403, content={"error": "Forbidden"})
+        if not target.exists():
+            return JSONResponse(status_code=404, content={"error": "Not found"})
+        import subprocess
+        subprocess.Popen(['explorer', '/select,', str(target)])
+        return JSONResponse(content={"ok": True})
+
     @app.get("/lora_browser/preview")
     def preview(path: str, w: int = 0):
         safe = (lora_dir_resolved / path).resolve()
@@ -3115,9 +3431,56 @@ def _register_api(_, app: FastAPI):
         lora_dir = _get_lora_dir()
         result = []
         for sf in sorted(lora_dir.rglob("*.safetensors")):
-            has_meta = (sf.parent / (sf.stem + ".metadata.json")).exists()
-            result.append({"name": sf.stem, "has_meta": has_meta})
+            name = sf.stem
+            meta_path = sf.parent / (name + ".metadata.json")
+            info_path = sf.parent / (name + ".civitai.info")
+            has_meta = meta_path.exists()
+            has_creator = False
+            if has_meta:
+                try:
+                    mdata = json.loads(meta_path.read_text(encoding="utf-8"))
+                    c = mdata.get("creator") or {}
+                    has_creator = bool(c.get("username"))
+                except Exception:
+                    pass
+            if not has_creator and not has_meta and info_path.exists():
+                try:
+                    idata = json.loads(info_path.read_text(encoding="utf-8"))
+                    minfo = idata.get("model") or {}
+                    c = minfo.get("creator") or idata.get("creator") or {}
+                    has_creator = bool(c.get("username"))
+                except Exception:
+                    pass
+            result.append({"name": name, "has_meta": has_meta, "has_creator": has_creator})
         return JSONResponse(content={"loras": result})
+
+    @app.get("/lora_browser/cp_missing")
+    def cp_missing():
+        cp_dir = _get_checkpoint_dir()
+        result = []
+        for sf in sorted(cp_dir.rglob("*.safetensors")):
+            name = sf.stem
+            meta_path = sf.parent / (name + ".metadata.json")
+            info_path = sf.parent / (name + ".civitai.info")
+            has_meta = meta_path.exists()
+            has_creator = False
+            if has_meta:
+                try:
+                    mdata = json.loads(meta_path.read_text(encoding="utf-8"))
+                    c = mdata.get("creator") or {}
+                    has_creator = bool(c.get("username"))
+                except Exception:
+                    pass
+            if not has_creator and info_path.exists():
+                try:
+                    idata = json.loads(info_path.read_text(encoding="utf-8"))
+                    minfo = idata.get("model") or {}
+                    c = minfo.get("creator") or idata.get("creator") or {}
+                    has_creator = bool(c.get("username"))
+                except Exception:
+                    pass
+            result.append({"name": name, "has_meta": has_meta, "has_creator": has_creator})
+        return JSONResponse(content={"checkpoints": result})
 
     @app.post("/lora_browser/fetch_civitai")
     async def fetch_civitai_endpoint(request: Request):
@@ -3190,12 +3553,13 @@ def _register_api(_, app: FastAPI):
         model_info = ver_data.get("model") or {}
         images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
 
-        # model-versions/by-hash often omits model.description, tags, and creator; fetch separately
+        # model-versions/by-hash often omits model.description and tags; fetch separately if needed
         model_description = model_info.get("description") or ""
         model_tags = model_info.get("tags") or []
-        creator = {}
+        # creator may already be embedded in model_info (by-hash response includes it)
+        creator = model_info.get("creator") or {}
         model_id = ver_data.get("modelId")
-        if model_id:
+        if model_id and (not model_description or not model_tags or not creator):
             try:
                 mreq = _urlreq.Request(
                     f"https://civitai.com/api/v1/models/{model_id}",
@@ -3207,7 +3571,8 @@ def _register_api(_, app: FastAPI):
                     model_description = mdata.get("description") or ""
                 if not model_tags:
                     model_tags = mdata.get("tags") or []
-                creator = mdata.get("creator") or {}
+                if not creator:
+                    creator = mdata.get("creator") or {}
             except Exception:
                 pass
 
@@ -3269,6 +3634,167 @@ def _register_api(_, app: FastAPI):
                 pass
 
         return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
+
+    @app.post("/lora_browser/fetch_civitai_cp")
+    async def fetch_civitai_cp_endpoint(request: Request):
+        import hashlib
+        import urllib.request as _urlreq
+        import urllib.error as _urlerr
+        data = await request.json()
+        name = (data.get("name") or "").strip()
+        force = bool(data.get("force", False))
+        dl_preview = bool(data.get("dl_preview", True))
+
+        if not name or any(c in name for c in ('/', '\\', '..')):
+            return JSONResponse(status_code=400, content={"error": "Invalid name"})
+
+        cp_dir = _get_checkpoint_dir()
+        sf_path = None
+        for sf in cp_dir.rglob(name + ".safetensors"):
+            sf_path = sf
+            break
+        if not sf_path:
+            return JSONResponse(status_code=404, content={"error": "Checkpoint not found"})
+
+        meta_path = sf_path.parent / (name + ".metadata.json")
+        info_path = sf_path.parent / (name + ".civitai.info")
+        if meta_path.exists() and not force:
+            return JSONResponse(content={"ok": True, "skipped": True})
+
+        sha256 = None
+        if info_path.exists():
+            try:
+                idata = json.loads(info_path.read_text(encoding="utf-8"))
+                for f in (idata.get("files") or []):
+                    h = (f.get("hashes") or {}).get("SHA256", "")
+                    if h:
+                        sha256 = h.lower()
+                        break
+            except Exception:
+                pass
+
+        if not sha256:
+            try:
+                h = hashlib.sha256()
+                with open(sf_path, "rb") as f:
+                    for chunk in iter(lambda: f.read(65536), b""):
+                        h.update(chunk)
+                sha256 = h.hexdigest()
+            except Exception as e:
+                return JSONResponse(status_code=500, content={"error": f"Hash error: {e}"})
+
+        api_key = request.headers.get("X-Civitai-Api-Key", "").strip()
+        def _civitai_headers():
+            h = {"User-Agent": "sd-webui-lora-browser/1.0"}
+            if api_key:
+                h["Authorization"] = f"Bearer {api_key}"
+            return h
+
+        try:
+            api_url = f"https://civitai.com/api/v1/model-versions/by-hash/{sha256}"
+            req = _urlreq.Request(api_url, headers=_civitai_headers())
+            with _urlreq.urlopen(req, timeout=20) as resp:
+                ver_data = json.loads(resp.read().decode("utf-8"))
+        except _urlerr.HTTPError as e:
+            if e.code == 404:
+                return JSONResponse(status_code=404, content={"error": "Not found on CivitAI"})
+            return JSONResponse(status_code=502, content={"error": f"CivitAI API error: {e.code}"})
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": f"Network error: {e}"})
+
+        model_info = ver_data.get("model") or {}
+        images = [img for img in (ver_data.get("images") or []) if img.get("type", "image") == "image"]
+        model_description = model_info.get("description") or ""
+        model_tags = model_info.get("tags") or []
+        creator = model_info.get("creator") or {}
+        model_id = ver_data.get("modelId")
+        if model_id and (not model_description or not model_tags or not creator):
+            try:
+                mreq = _urlreq.Request(
+                    f"https://civitai.com/api/v1/models/{model_id}",
+                    headers=_civitai_headers()
+                )
+                with _urlreq.urlopen(mreq, timeout=20) as resp:
+                    mdata = json.loads(resp.read().decode("utf-8"))
+                if not model_description:
+                    model_description = mdata.get("description") or ""
+                if not model_tags:
+                    model_tags = mdata.get("tags") or []
+                if not creator:
+                    creator = mdata.get("creator") or {}
+            except Exception:
+                pass
+
+        metadata = {
+            "model_name": model_info.get("name") or name,
+            "tags": model_tags,
+            "base_model": ver_data.get("baseModel") or "",
+            "preview_url": "",
+            "creator": creator,
+            "civitai": {
+                "modelId": ver_data.get("modelId"),
+                "id": ver_data.get("id"),
+                "trainedWords": ver_data.get("trainedWords") or [],
+                "description": ver_data.get("description") or "",
+                "images": images[:10],
+            },
+            "modelDescription": model_description,
+        }
+
+        if dl_preview and images:
+            has_preview = any(
+                (sf_path.parent / (name + ext)).exists()
+                for ext in [".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]
+            )
+            if not has_preview:
+                try:
+                    img_url = images[0].get("url", "")
+                    if img_url:
+                        req = _urlreq.Request(img_url, headers={"User-Agent": "sd-webui-lora-browser/1.0"})
+                        with _urlreq.urlopen(req, timeout=30) as resp:
+                            img_data = resp.read()
+                            ct = resp.headers.get("Content-Type", "")
+                        if "webp" in ct:
+                            img_ext = ".preview.webp"
+                        elif "png" in ct:
+                            img_ext = ".preview.png"
+                        else:
+                            img_ext = ".preview.jpg"
+                        (sf_path.parent / (name + img_ext)).write_bytes(img_data)
+                except Exception:
+                    pass
+
+        try:
+            meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"Save error: {e}"})
+
+        return JSONResponse(content={"ok": True, "model_name": metadata["model_name"]})
+
+    @app.get("/lora_browser/list_checkpoints")
+    def list_checkpoints_api():
+        cps = _scan_checkpoints()
+        cp_dir = _get_checkpoint_dir()
+        folders = []
+        if cp_dir.exists():
+            for d in sorted(cp_dir.rglob("*")):
+                if d.is_dir():
+                    rel = str(d.relative_to(cp_dir)).replace("\\", "/")
+                    if rel and not any(p.startswith(".") for p in Path(rel).parts):
+                        folders.append(rel)
+        no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+        return JSONResponse(content={"checkpoints": cps, "folders": folders}, headers=no_cache)
+
+    @app.get("/lora_browser/preview_cp")
+    def preview_cp(path: str, w: int = 0):
+        cp_dir = _get_checkpoint_dir().resolve()
+        safe = (cp_dir / path).resolve()
+        if not str(safe).startswith(str(cp_dir)):
+            return JSONResponse(status_code=403, content={"error": "Forbidden"})
+        if not safe.exists():
+            return JSONResponse(status_code=404, content={"error": "Not found"})
+        no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+        return FileResponse(str(safe), headers=no_cache)
 
     @app.get("/lora_browser/config")
     def get_config():
