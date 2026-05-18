@@ -30,6 +30,11 @@ Stable Diffusion WebUI / Forge Neo / Reforge 向けの LORA ブラウザ拡張�
 
 ## 更新履歴
 
+### v1.3.0 (2026-05-19)
+- モーダルにLORA作者（CivitAIアカウント）をアイコン付きで表示
+- Base Model ラベルに変更
+- トリガーワードの追加・保存を修正（入力欄に書いてSaveするだけで反映）
+
 ### v1.2.0 (2026-05-16)
 - Reforge(Gradio3)に対応
 
