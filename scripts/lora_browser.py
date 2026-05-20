@@ -1,8 +1,39 @@
 import json
+import re as _re
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from modules.script_callbacks import on_app_started, on_ui_tabs
+
+
+def _sanitize_desc(raw):
+    s = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw, flags=_re.DOTALL|_re.IGNORECASE)
+    s = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', s, flags=_re.IGNORECASE)
+    s = _re.sub(r"\son\w+\s*=\s*'[^']*'", '', s, flags=_re.IGNORECASE)
+    s = _re.sub(r'\son\w+\s*=\s*[^\s>]+', '', s, flags=_re.IGNORECASE)
+    s = _re.sub(r'(href|src|action)\s*=\s*["\']?\s*javascript:[^"\'>\s]*["\']?', '', s, flags=_re.IGNORECASE)
+    return s.strip()
+
+
+def _parse_sample_images(images_list):
+    result = []
+    for img in (images_list or []):
+        url = img.get("url", "")
+        if not url or img.get("type", "image") != "image" or len(result) >= 6:
+            continue
+        meta = img.get("meta") or {}
+        result.append({
+            "url": url,
+            "prompt": (meta.get("prompt") or "")[:2000],
+            "neg": (meta.get("negativePrompt") or "")[:2000],
+            "steps": meta.get("steps", ""),
+            "cfg": meta.get("cfgScale", ""),
+            "sampler": (meta.get("sampler") or "")[:40],
+            "model": (meta.get("Model") or meta.get("model") or "")[:60],
+            "seed": meta.get("seed", ""),
+            "size": (meta.get("Size") or "")[:20],
+        })
+    return result
 
 try:
     from modules import paths as _mp
@@ -71,11 +102,6 @@ body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', sans-s
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 6px;
   color: var(--txt); font-size: 15px; box-sizing: border-box; flex-shrink: 0; }
 #search:focus { outline: none; border-color: var(--pri); }
-#weight-wrap { display: flex; align-items: center; gap: 6px; font-size: 14px;
-  color: var(--txt3); white-space: nowrap; }
-#weight-input { width: 62px; padding: 7px 8px; background: var(--bg3);
-  border: 1px solid var(--bd2); border-radius: 6px; color: var(--txt);
-  font-size: 14px; text-align: center; }
 #count { font-size: 13px; color: var(--txt4); white-space: nowrap; }
 .lora-syntax-row { display: flex; align-items: center; gap: 6px; }
 .lora-syntax-row .lora-syntax-box { flex: 1; margin: 0; }
@@ -446,9 +472,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
 .sp-btn.active { border-color: var(--pri); background: var(--pri-bg2); color: var(--acc); }
 
 /* ── トースト ── */
-#sidebar-header { display: flex; align-items: center; justify-content: flex-end;
-  padding: 6px 8px; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
-#folder-mgr-btn:hover { border-color: var(--pri) !important; color: var(--acc) !important; background: var(--pri-bg) !important; }
 .stree-row { position: relative; }
 .stree-row.stree-drag-over { background: rgba(59,130,246,0.18); border-left: 3px solid #3b82f6;
   padding-left: 5px !important; border-radius: 6px; }
@@ -540,6 +563,7 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
         <button class="sp-btn" id="sp-thumb-lg" onclick="setThumbSize('lg')">L</button>
       </div>
       <div style="flex:1"></div>
+      <span id="count" style="font-size:13px;color:var(--txt4);white-space:nowrap"></span>
       <button id="sidebar-toggle-btn" class="hdr-btn active" onclick="toggleSidebar()" title="Sidebar">≡</button>
       <button id="refresh-btn" class="hdr-btn" onclick="reload()" title="Refresh">⟳</button>
       <button id="settings-btn" class="hdr-btn" onclick="openSettings()" title="Settings">⚙</button>
@@ -1180,55 +1204,6 @@ function buildCpCatTree() {
   return root;
 }
 
-function addFolderActions(row, folderPath) {
-  const wrap = document.createElement('span');
-  wrap.className = 'stree-folder-actions';
-  const addBtn = document.createElement('button');
-  addBtn.className = 'stree-folder-btn';
-  addBtn.title = 'Create subfolder';
-  addBtn.textContent = '+';
-  addBtn.addEventListener('click', e => { e.stopPropagation(); showInlineCreateFolder(row, folderPath); });
-  const delBtn = document.createElement('button');
-  delBtn.className = 'stree-folder-btn del';
-  delBtn.title = 'Delete folder';
-  delBtn.textContent = '×';
-  delBtn.addEventListener('click', e => { e.stopPropagation(); confirmDeleteFolder(folderPath); });
-  wrap.appendChild(addBtn);
-  wrap.appendChild(delBtn);
-  row.appendChild(wrap);
-}
-function showInlineRootCreate() {
-  const existing = document.getElementById('fm-inline-create');
-  if (existing) { existing.remove(); return; }
-  const catList = document.getElementById('cat-list');
-  const div = document.createElement('div');
-  div.id = 'fm-inline-create';
-  div.className = 'fm-inline-create';
-  div.style.paddingLeft = '10px';
-  const inp = document.createElement('input');
-  inp.className = 'tw-edit-input';
-  inp.placeholder = 'New folder name';
-  inp.style.cssText = 'flex:1;font-size:12px;padding:3px 7px';
-  const cancel = document.createElement('button');
-  cancel.className = 'stree-folder-btn';
-  cancel.textContent = '×';
-  cancel.addEventListener('click', () => div.remove());
-  inp.addEventListener('keydown', async e => {
-    if (e.key === 'Enter') {
-      const name = inp.value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-      if (!name) return;
-      div.remove();
-      await createFolder(name);
-    }
-    if (e.key === 'Escape') div.remove();
-  });
-  div.appendChild(inp);
-  div.appendChild(cancel);
-  const allBtn = document.getElementById('all-sidebar-btn');
-  const ref = allBtn ? allBtn.nextSibling : catList.firstChild;
-  catList.insertBefore(div, ref);
-  inp.focus();
-}
 function showInlineCreateFolder(row, parentPath) {
   const existing = document.getElementById('fm-inline-create');
   if (existing) { existing.remove(); return; }
@@ -1287,40 +1262,6 @@ async function confirmDeleteFolder(folderPath) {
     showToast('Deleted: ' + folderPath);
     await loadLoras();
   } catch(e) { showToast('Error: ' + e.message); }
-}
-function startFolderRename(row, nameSpan, folderPath, currentName) {
-  if (row.querySelector('.stree-rename-input')) return;
-  nameSpan.style.display = 'none';
-  const inp = document.createElement('input');
-  inp.className = 'stree-rename-input tw-edit-input';
-  inp.value = currentName;
-  inp.style.cssText = 'flex:1;font-size:13px;padding:2px 6px;min-width:0';
-  row.insertBefore(inp, nameSpan.nextSibling);
-  inp.focus();
-  inp.select();
-  const cancel = () => {
-    inp.remove();
-    nameSpan.style.display = '';
-  };
-  const commit = async () => {
-    const newName = inp.value.trim();
-    if (!newName || newName === currentName) { cancel(); return; }
-    try {
-      const res = await fetch('/lora_browser/rename_folder', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({old_path: folderPath, new_name: newName})
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast('Error: ' + (data.error || 'Failed')); cancel(); return; }
-      showToast('Renamed');
-      await loadLoras();
-    } catch(e) { showToast('Error: ' + e.message); cancel(); }
-  };
-  inp.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') cancel();
-  });
-  inp.addEventListener('blur', () => setTimeout(cancel, 150));
 }
 
 function addFolderDrop(el, folderPath) {
@@ -1558,7 +1499,6 @@ function renderSidebarNode(node, container, depth, parentPath) {
       const draggedName = draggedPath.split('/').pop();
       const draggedParent = draggedPath.includes('/') ? draggedPath.split('/').slice(0,-1).join('/') : '';
       if (draggedParent === parentPath) {
-        const siblings = Object.keys(node.dirs);
         let order = getFmgrSortedKeys(node.dirs, parentPath).filter(n => n !== draggedName);
         const myIdx = order.indexOf(dirName);
         order.splice(myIdx + 1, 0, draggedName);
@@ -2730,20 +2670,10 @@ function updateFavSidebarCount() {
 }
 
 /* ── ユーティリティ ── */
-function groupByCategory(loras) {
-  const g = {};
-  loras.forEach(l => { const k = l.category || ''; if (!g[k]) g[k] = []; g[k].push(l); });
-  return g;
-}
-function sortedCats(groups) {
-  return Object.keys(groups).sort((a, b) => {
-    if (!a && b) return -1; if (a && !b) return 1;
-    return a.localeCompare(b, 'ja');
-  });
-}
 function esc(s) {
   return String(s || '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function startFileRename() {
   document.getElementById('filename-view').style.display = 'none';
@@ -3054,30 +2984,6 @@ def _scan_checkpoints():
         info_path = path.parent / (name + ".civitai.info")
         if meta_path.exists():
             try:
-                import re as _re
-                def _sanitize(raw):
-                    s = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw, flags=_re.DOTALL|_re.IGNORECASE)
-                    s = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', s, flags=_re.IGNORECASE)
-                    return _re.sub(r"\son\w+\s*=\s*'[^']*'", '', s, flags=_re.IGNORECASE).strip()
-                def _parse_imgs(images_list):
-                    result = []
-                    for img in (images_list or []):
-                        url = img.get("url", "")
-                        if not url or img.get("type", "image") != "image" or len(result) >= 6:
-                            continue
-                        meta = img.get("meta") or {}
-                        result.append({
-                            "url": url,
-                            "prompt": (meta.get("prompt") or "")[:2000],
-                            "neg": (meta.get("negativePrompt") or "")[:2000],
-                            "steps": meta.get("steps", ""),
-                            "cfg": meta.get("cfgScale", ""),
-                            "sampler": (meta.get("sampler") or "")[:40],
-                            "model": (meta.get("Model") or meta.get("model") or "")[:60],
-                            "seed": meta.get("seed", ""),
-                            "size": (meta.get("Size") or "")[:20],
-                        })
-                    return result
                 mdata = json.loads(meta_path.read_text(encoding="utf-8"))
                 model_name = mdata.get("model_name") or name
                 base_model = mdata.get("base_model") or ""
@@ -3086,8 +2992,8 @@ def _scan_checkpoints():
                 civitai_model_id = int(civitai.get("modelId") or 0)
                 civitai_version_id = int(civitai.get("id") or 0)
                 raw_desc = mdata.get("modelDescription") or civitai.get("description") or ""
-                civitai_html = _sanitize(raw_desc)
-                sample_images = _parse_imgs(civitai.get("images"))
+                civitai_html = _sanitize_desc(raw_desc)
+                sample_images = _parse_sample_images(civitai.get("images"))
             except Exception:
                 pass
         elif info_path.exists():
@@ -3167,33 +3073,6 @@ def _scan_loras():
         trained_words = []
         sample_images = []
         civitai_html = ""
-        import re as _re
-
-        def _sanitize_html(raw):
-            s = _re.sub(r'<(script|iframe|object|embed|style|form)[^>]*>.*?</\1>', '', raw, flags=_re.DOTALL|_re.IGNORECASE)
-            s = _re.sub(r'\son\w+\s*=\s*"[^"]*"', '', s, flags=_re.IGNORECASE)
-            s = _re.sub(r"\son\w+\s*=\s*'[^']*'", '', s, flags=_re.IGNORECASE)
-            return s.strip()
-
-        def _parse_images(images_list):
-            result = []
-            for img in (images_list or []):
-                url = img.get("url", "")
-                if not url or img.get("type", "image") != "image" or len(result) >= 6:
-                    continue
-                meta = img.get("meta") or {}
-                result.append({
-                    "url": url,
-                    "prompt": (meta.get("prompt") or "")[:2000],
-                    "neg": (meta.get("negativePrompt") or "")[:2000],
-                    "steps": meta.get("steps", ""),
-                    "cfg": meta.get("cfgScale", ""),
-                    "sampler": (meta.get("sampler") or "")[:40],
-                    "model": (meta.get("Model") or meta.get("model") or "")[:60],
-                    "seed": meta.get("seed", ""),
-                    "size": (meta.get("Size") or "")[:20],
-                })
-            return result
 
         meta_path = path.parent / (name + ".metadata.json")
         info_path = path.parent / (name + ".civitai.info")
@@ -3219,8 +3098,8 @@ def _scan_loras():
                 civitai_version_id = int(civitai.get("id") or 0)
                 trained_words = civitai.get("trainedWords") or []
                 raw_desc = mdata.get("modelDescription") or civitai.get("description") or ""
-                civitai_html = _sanitize_html(raw_desc)
-                sample_images = _parse_images(civitai.get("images"))
+                civitai_html = _sanitize_desc(raw_desc)
+                sample_images = _parse_sample_images(civitai.get("images"))
             except Exception:
                 pass
         elif info_path.exists():
@@ -3234,8 +3113,8 @@ def _scan_loras():
                 civitai_version_id = int(idata.get("id") or 0)
                 trained_words = idata.get("trainedWords") or []
                 raw_desc = minfo.get("description") or idata.get("description") or ""
-                civitai_html = _sanitize_html(raw_desc)
-                sample_images = _parse_images(idata.get("images"))
+                civitai_html = _sanitize_desc(raw_desc)
+                sample_images = _parse_sample_images(idata.get("images"))
                 creator = minfo.get("creator") or idata.get("creator") or {}
             except Exception:
                 pass
@@ -3271,8 +3150,6 @@ def _scan_loras():
 
 
 def _register_api(_, app: FastAPI):
-    lora_dir_resolved = _get_lora_dir().resolve()
-    cp_dir_resolved = _get_checkpoint_dir().resolve()
 
     @app.get("/lora_browser/ui", response_class=HTMLResponse)
     def ui():
@@ -3526,8 +3403,8 @@ def _register_api(_, app: FastAPI):
             if (parent / (new_name + ".safetensors")).exists():
                 return JSONResponse(status_code=400, content={"error": "File already exists"})
             try:
-                for ext in [".safetensors", ".json", ".metadata.json",
-                            ".preview.png", ".preview.jpg", ".preview.jpeg"]:
+                for ext in [".safetensors", ".json", ".metadata.json", ".civitai.info",
+                            ".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]:
                     old_p = parent / (old_name + ext)
                     if old_p.exists():
                         old_p.rename(parent / (new_name + ext))
@@ -3595,8 +3472,8 @@ def _register_api(_, app: FastAPI):
         lora_dir = _get_lora_dir()
         for sf in lora_dir.rglob(name + ".safetensors"):
             deleted = []
-            for ext in [".safetensors", ".json", ".metadata.json",
-                        ".preview.png", ".preview.jpg", ".preview.jpeg"]:
+            for ext in [".safetensors", ".json", ".metadata.json", ".civitai.info",
+                        ".preview.png", ".preview.jpg", ".preview.jpeg", ".preview.webp"]:
                 p = sf.parent / (sf.stem + ext)
                 if p.exists():
                     p.unlink()
@@ -3739,8 +3616,9 @@ def _register_api(_, app: FastAPI):
 
     @app.get("/lora_browser/preview")
     def preview(path: str, w: int = 0):
-        safe = (lora_dir_resolved / path).resolve()
-        if not str(safe).startswith(str(lora_dir_resolved)):
+        _lora_dir = _get_lora_dir().resolve()
+        safe = (_lora_dir / path).resolve()
+        if not str(safe).startswith(str(_lora_dir)):
             return JSONResponse(status_code=403, content={"error": "Forbidden"})
         if not safe.exists():
             return JSONResponse(status_code=404, content={"error": "Not found"})
@@ -4140,24 +4018,6 @@ def _register_api(_, app: FastAPI):
             return JSONResponse(status_code=404, content={"error": "Not found"})
         no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
         return FileResponse(str(safe), headers=no_cache)
-
-    @app.post("/lora_browser/install_update")
-    def install_update():
-        import subprocess
-        try:
-            result = subprocess.run(
-                ["git", "pull"],
-                cwd=str(EXTENSION_ROOT),
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode == 0:
-                return JSONResponse(content={"ok": True, "output": result.stdout.strip()})
-            else:
-                return JSONResponse(status_code=500, content={"error": result.stderr.strip() or result.stdout.strip()})
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"error": str(e)})
 
     @app.get("/lora_browser/config")
     def get_config():
