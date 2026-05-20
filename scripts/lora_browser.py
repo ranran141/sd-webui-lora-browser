@@ -601,16 +601,6 @@ body.selecting .card.selected:hover { border-color: #3b82f6; box-shadow: 0 0 0 2
       <div id="bulk-fetch-result"></div>
       <button class="modal-action-btn delete-btn" id="bulk-fetch-stop-btn" onclick="bulkFetchAbort=true" style="align-self:flex-end">■ Stop</button>
     </div>
-    <div class="settings-row" style="margin-top:8px">
-      <div class="settings-label">Version</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <span id="update-current" style="font-size:14px;color:var(--txt3)">v1.4.0</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button class="modal-action-btn fetch-btn" id="btn-check-update" onclick="checkUpdate()" style="padding:5px 14px">Check for Updates</button>
-          <span id="update-result" style="font-size:13px"></span>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -2485,55 +2475,6 @@ async function autoSaveCpDirSetting() {
 }
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
-}
-async function checkUpdate() {
-  const btn = document.getElementById('btn-check-update');
-  const result = document.getElementById('update-result');
-  const CURRENT = '1.4.0';
-  btn.disabled = true;
-  result.textContent = 'Checking...';
-  result.style.color = 'var(--txt3)';
-  try {
-    const res = await fetch(
-      'https://raw.githubusercontent.com/ranran141/sd-webui-lora-browser/main/version.txt',
-      { cache: 'no-store' }
-    );
-    if (!res.ok) throw new Error('fetch failed');
-    const latest = (await res.text()).trim();
-    if (latest === CURRENT) {
-      result.innerHTML = '<span style="color:#22c55e">Up to date</span>';
-    } else {
-      result.innerHTML =
-        `<span style="color:#f59e0b;margin-right:8px">v${latest} available</span>` +
-        `<button class="modal-action-btn fetch-btn" id="btn-install-update" style="padding:4px 12px;font-size:12px" onclick="installUpdate('${latest}')">Install</button>`;
-    }
-  } catch(e) {
-    result.innerHTML = '<span style="color:#ef4444">Failed to check</span>';
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function installUpdate(version) {
-  const btn = document.getElementById('btn-install-update');
-  const result = document.getElementById('update-result');
-  btn.disabled = true;
-  btn.textContent = 'Installing...';
-  try {
-    const res = await fetch('/lora_browser/install_update', { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) {
-      result.innerHTML = '<span style="color:#22c55e">✓ Installed v' + version + ' — please restart WebUI</span>';
-    } else {
-      result.innerHTML = '<span style="color:#ef4444">Error: ' + esc(data.error || 'unknown') + '</span>';
-      btn.disabled = false;
-      btn.textContent = 'Retry';
-    }
-  } catch(e) {
-    result.innerHTML = '<span style="color:#ef4444">Error: ' + esc(e.message) + '</span>';
-    btn.disabled = false;
-    btn.textContent = 'Retry';
-  }
 }
 /* ── Folder Manager ── */
 let fmgrOrder = {};
