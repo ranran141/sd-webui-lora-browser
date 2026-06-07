@@ -4038,13 +4038,30 @@ def _create_tab():
     with gr.Blocks(analytics_enabled=False, css=css) as ui:
         btn = gr.Button('Open in New Window', variant='primary', elem_id='lora-open-btn')
         if _gr_major >= 4:
-            btn.click(fn=None, inputs=[], outputs=[], js=_open_js)
+            btn.click(fn=None, inputs=[], outputs=[], js=_open_js, api_name=False)
         else:
             btn.click(fn=lambda: None, inputs=[], outputs=[], _js=_open_js)
         gr.HTML('''
-            <iframe src="/lora_browser/ui"
+            <iframe id="lora-browser-frame" src="about:blank"
                     style="width:100%;height:calc(100vh - 160px);border:none;display:block;margin-top:8px;">
             </iframe>
+            <script>
+              (function() {
+                function tryLoad(retry) {
+                  fetch('/lora_browser/ui').then(function(r) {
+                    if (r.ok) {
+                      var f = document.getElementById('lora-browser-frame');
+                      if (f) f.src = '/lora_browser/ui';
+                    } else if (retry > 0) {
+                      setTimeout(function() { tryLoad(retry - 1); }, 800);
+                    }
+                  }).catch(function() {
+                    if (retry > 0) setTimeout(function() { tryLoad(retry - 1); }, 800);
+                  });
+                }
+                tryLoad(10);
+              })();
+            </script>
         ''')
     return [(ui, 'LORA Browser', 'lora_browser_tab')]
 
