@@ -2,7 +2,7 @@ import json
 import re as _re
 from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from modules.script_callbacks import on_app_started, on_ui_tabs
 
 
@@ -3151,6 +3151,61 @@ def _scan_loras():
 
 def _register_api(_, app: FastAPI):
 
+    def _redirect_to_physton(path: str, request: Request):
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(url=f"/physton_prompt/{path}{query}", status_code=307)
+
+    @app.api_route(
+        "/lora_browser/ui/physton_prompt/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def redirect_physton_prompt_from_lora_browser_ui(path: str, request: Request):
+        return _redirect_to_physton(path, request)
+
+    @app.api_route(
+        "/lora_browser/physton_prompt/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def redirect_physton_prompt_from_lora_browser(path: str, request: Request):
+        return _redirect_to_physton(path, request)
+
+    @app.api_route(
+        "/physton_prompt//{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def redirect_double_slash_physton_prompt(path: str, request: Request):
+        return _redirect_to_physton(path, request)
+
+    @app.api_route(
+        "/physton_prompt/physton_prompt/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def redirect_double_physton_prompt(path: str, request: Request):
+        return _redirect_to_physton(path, request)
+
+    def _make_physton_compat_redirect(path: str):
+        async def _compat_redirect(request: Request):
+            return _redirect_to_physton(path, request)
+        return _compat_redirect
+
+    for _path in (
+        "get_version", "get_remote_versions", "get_config", "install_package",
+        "get_extensions", "token_counter", "get_data", "get_datas", "set_data",
+        "set_datas", "get_data_list_item", "push_data_list", "pop_data_list",
+        "shift_data_list", "remove_data_list", "clear_data_list", "get_histories",
+        "get_favorites", "push_history", "push_favorite", "move_up_favorite",
+        "move_down_favorite", "get_latest_history", "set_history",
+        "set_history_name", "set_favorite_name", "dofavorite", "unfavorite",
+        "delete_history", "delete_histories", "translate", "translates",
+        "get_csvs", "get_csv", "styles", "get_extension_css_list",
+        "get_extra_networks", "gen_openai", "mbart50_initialize", "get_group_tags",
+    ):
+        app.add_api_route(
+            f"/{_path}",
+            _make_physton_compat_redirect(_path),
+            methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        )
+
     @app.get("/lora_browser/ui", response_class=HTMLResponse)
     def ui():
         return HTMLResponse(
@@ -4035,33 +4090,60 @@ def _create_tab():
     _gr_major = int(getattr(gr, '__version__', '4').split('.')[0])
     css = "#lora-open-btn { min-height: 44px !important; font-size: 14px !important; font-weight: 600 !important; }"
     _open_js = "() => window.open('/lora_browser/ui', 'lora_browser', 'width=1280,height=860,resizable=yes,scrollbars=yes')"
+    iframe_loader = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8'>
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    color: var(--body-text-color);
+    background: var(--background-fill-primary);
+    font: 13px sans-serif;
+  }
+  #status {
+    padding: 14px 16px;
+    color: var(--body-text-color-subdued);
+  }
+</style>
+</head>
+<body>
+<div id='status'>Loading LORA Browser...</div>
+<script>
+(function() {
+  var tries = 0;
+  var status = document.getElementById('status');
+  function load() {
+    fetch('/lora_browser/ui', { cache: 'no-store' }).then(function(r) {
+      if (r.ok) {
+        window.location.replace('/lora_browser/ui?_=' + Date.now());
+        return;
+      }
+      throw new Error('HTTP ' + r.status);
+    }).catch(function(e) {
+      tries += 1;
+      if (status) status.textContent = 'Waiting for LORA Browser route... (' + tries + ')';
+      setTimeout(load, Math.min(1000 + tries * 250, 5000));
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>
+""".replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
     with gr.Blocks(analytics_enabled=False, css=css) as ui:
         btn = gr.Button('Open in New Window', variant='primary', elem_id='lora-open-btn')
         if _gr_major >= 4:
             btn.click(fn=None, inputs=[], outputs=[], js=_open_js, api_name=False)
         else:
             btn.click(fn=lambda: None, inputs=[], outputs=[], _js=_open_js)
-        gr.HTML('''
-            <iframe id="lora-browser-frame" src="about:blank"
+        gr.HTML(f'''
+            <iframe id="lora-browser-frame" srcdoc="{iframe_loader}"
                     style="width:100%;height:calc(100vh - 160px);border:none;display:block;margin-top:8px;">
             </iframe>
-            <script>
-              (function() {
-                function tryLoad(retry) {
-                  fetch('/lora_browser/ui').then(function(r) {
-                    if (r.ok) {
-                      var f = document.getElementById('lora-browser-frame');
-                      if (f) f.src = '/lora_browser/ui';
-                    } else if (retry > 0) {
-                      setTimeout(function() { tryLoad(retry - 1); }, 800);
-                    }
-                  }).catch(function() {
-                    if (retry > 0) setTimeout(function() { tryLoad(retry - 1); }, 800);
-                  });
-                }
-                tryLoad(10);
-              })();
-            </script>
         ''')
     return [(ui, 'LORA Browser', 'lora_browser_tab')]
 
